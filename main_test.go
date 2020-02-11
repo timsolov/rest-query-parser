@@ -27,7 +27,7 @@ func TestFields(t *testing.T) {
 		assert.NoError(t, err)
 		q, err := NewParse(URL.Query(), nil)
 		assert.Equal(t, c.err, err)
-		assert.Equal(t, c.expected, q.Fields())
+		assert.Equal(t, c.expected, q.FieldsSQL())
 	}
 }
 
@@ -48,7 +48,7 @@ func TestOffset(t *testing.T) {
 		assert.NoError(t, err)
 		q, err := NewParse(URL.Query(), nil)
 		assert.Equal(t, c.err, err)
-		assert.Equal(t, c.expected, q.Offset())
+		assert.Equal(t, c.expected, q.OffsetSQL())
 	}
 }
 
@@ -68,7 +68,7 @@ func TestLimit(t *testing.T) {
 		assert.NoError(t, err)
 		q, err := NewParse(URL.Query(), nil)
 		assert.Equal(t, c.err, err)
-		assert.Equal(t, c.expected, q.Limit())
+		assert.Equal(t, c.expected, q.LimitSQL())
 	}
 }
 
@@ -91,7 +91,7 @@ func TestSort(t *testing.T) {
 		assert.NoError(t, err)
 		q, err := NewParse(URL.Query(), nil)
 		assert.Equal(t, c.err, err)
-		assert.Equal(t, c.expected, q.Sort())
+		assert.Equal(t, c.expected, q.SortSQL())
 	}
 }
 
@@ -136,7 +136,7 @@ func TestWhere(t *testing.T) {
 		err = q.Parse()
 
 		assert.Equal(t, c.err, err)
-		where := q.Where()
+		where := q.WhereSQL()
 		if len(c.expected2) > 0 {
 			//t.Log(where)
 			assert.True(t, c.expected == where || c.expected2 == where)

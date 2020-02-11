@@ -113,7 +113,7 @@ func (p *QueryParser) parseFilterValue(filter Filter, _type string, value []stri
 				return err
 			}
 		}
-		p.filters = append(p.filters, filter)
+		p.Filters = append(p.Filters, filter)
 	default: // str, string and all other unknown types will handle like string
 		err := filter.setString(list)
 		if err != nil {
@@ -126,7 +126,7 @@ func (p *QueryParser) parseFilterValue(filter Filter, _type string, value []stri
 				}
 			}
 		}
-		p.filters = append(p.filters, filter)
+		p.Filters = append(p.Filters, filter)
 	}
 
 	return nil

@@ -6,6 +6,23 @@ import (
 	"strings"
 )
 
+// QueryParser contatins of all major data
+type QueryParser struct {
+	query       map[string][]string
+	validations Validations
+
+	Fields  []string
+	Offset  int
+	Limit   int
+	Sorts   []Sort
+	Filters []Filter
+
+	delimiter     string
+	ignoreUnknown bool
+
+	ErrorMessage string
+}
+
 var (
 	MethodEQ   string = "EQ"
 	MethodNE   string = "NE"
@@ -35,23 +52,6 @@ type Sort struct {
 	desc bool
 }
 
-// QueryParser contatins of all major data
-type QueryParser struct {
-	query       map[string][]string
-	validations Validations
-
-	fields  []string
-	offset  int
-	limit   int
-	sorts   []Sort
-	filters []Filter
-
-	delimiter     string
-	ignoreUnknown bool
-
-	ErrorMessage string
-}
-
 // Delimiter sets delimiter for values of multiple filter
 func (p *QueryParser) Delimiter(delimiter string) *QueryParser {
 	p.delimiter = delimiter
@@ -64,82 +64,57 @@ func (p *QueryParser) IgnoreUnknownFilters(i bool) *QueryParser {
 	return p
 }
 
-// Fields returns elements for querying in SELECT statement or * if fields parameter not specified
-func (p *QueryParser) Fields() string {
-	if len(p.fields) == 0 {
+// FieldsSQL returns elements for querying in SELECT statement or * if fields parameter not specified
+func (p *QueryParser) FieldsSQL() string {
+	if len(p.Fields) == 0 {
 		return "*"
 	}
-	return strings.Join(p.fields, ", ")
+	return strings.Join(p.Fields, ", ")
 }
 
-// GetFields getter for fields
-func (p *QueryParser) GetFields() []string {
-	return p.fields
-}
-
-// SetFields setter for fields
-func (p *QueryParser) SetFields(fields []string) {
-	p.fields = fields
-}
-
-// AskField returns true if request asks for field
+// HaveField returns true if request asks for field
 func (p *QueryParser) HaveField(field string) bool {
-	return stringInSlice(field, p.fields)
+	return stringInSlice(field, p.Fields)
 }
 
-// Offset returns OFFSET statement
-func (p *QueryParser) Offset() string {
-	if p.offset > 0 {
-		return fmt.Sprintf(" OFFSET %d", p.offset)
+// AddField returns true if request asks for field
+func (p *QueryParser) AddField(field string) {
+	p.Fields = append(p.Fields, field)
+}
+
+// OffsetSQL returns OFFSET statement
+func (p *QueryParser) OffsetSQL() string {
+	if p.Offset > 0 {
+		return fmt.Sprintf(" OFFSET %d", p.Offset)
 	}
 	return ""
 }
 
-// GetOffset getter for offset
-func (p *QueryParser) GetOffset() int {
-	return p.offset
-}
-
-// SetOffset setter for offset
-func (p *QueryParser) SetOffset(offset int) {
-	p.offset = offset
-}
-
-// Limit returns LIMIT statement
-func (p *QueryParser) Limit() string {
-	if p.limit > 0 {
-		return fmt.Sprintf(" LIMIT %d", p.limit)
+// LimitSQL returns LIMIT statement
+func (p *QueryParser) LimitSQL() string {
+	if p.Limit > 0 {
+		return fmt.Sprintf(" LIMIT %d", p.Limit)
 	}
 	return ""
 }
 
-// GetLimit getter for limit
-func (p *QueryParser) GetLimit() int {
-	return p.limit
-}
-
-// GetLimit setter for limit
-func (p *QueryParser) SetLimit(limit int) {
-	p.limit = limit
-}
-
-// Sort returns ORDER BY statement
+// SortSQL returns ORDER BY statement
 // you can use +/- prefix to specify direction of sorting (+ is default)
-func (p *QueryParser) Sort() string {
-	if len(p.sorts) == 0 {
+func (p *QueryParser) SortSQL() string {
+	if len(p.Sorts) == 0 {
 		return ""
 	}
 
 	s := " ORDER BY "
 
-	for i := 0; i < len(p.sorts); i++ {
+	for i := 0; i < len(p.Sorts); i++ {
 		if i > 0 {
 			s += ", "
 		}
-		if p.sorts[i].desc {
-			s += fmt.Sprintf("%s DESC", p.sorts[i].by)
+		if p.Sorts[i].desc {
+			s += fmt.Sprintf("%s DESC", p.Sorts[i].by)
 		} else {
-			s += p.sorts[i].by
+			s += p.Sorts[i].by
 		}
 	}
 
@@ -148,18 +123,18 @@ func (p *QueryParser) Sort() string {
 
 // GetSorts getter for sort
 func (p *QueryParser) GetSorts() []Sort {
-	return p.sorts
+	return p.Sorts
 }
 
 // SetSorts setter for sort
 func (p *QueryParser) SetSorts(sort []Sort) {
-	p.sorts = sort
+	p.Sorts = sort
 }
 
 // HaveSortBy returns true if request contains some sorting
 func (p *QueryParser) HaveSortBy(by string) bool {
 
-	for _, v := range p.sorts {
+	for _, v := range p.Sorts {
 		if v.by == by {
 			return true
 		}
@@ -170,18 +145,18 @@ func (p *QueryParser) HaveSortBy(by string) bool {
 
 // GetFilters getter for filters
 func (p *QueryParser) GetFilters() []Filter {
-	return p.filters
+	return p.Filters
 }
 
 // SetFilters setter for filters
 func (p *QueryParser) SetFilters(filters []Filter) {
-	p.filters = filters
+	p.Filters = filters
 }
 
 // HaveFilter returns true if request contains some filter
 func (p *QueryParser) HaveFilter(key string) bool {
 
-	for _, v := range p.filters {
+	for _, v := range p.Filters {
 		if v.name == key {
 			return true
 		}
@@ -193,14 +168,14 @@ func (p *QueryParser) HaveFilter(key string) bool {
 // Where returns list of filters for WHERE statement
 func (p *QueryParser) Where() string {
 
-	if len(p.filters) == 0 {
+	if len(p.Filters) == 0 {
 		return ""
 	}
 
 	var where []string
 
-	for i := 0; i < len(p.filters); i++ {
-		filter := p.filters[i]
+	for i := 0; i < len(p.Filters); i++ {
+		filter := p.Filters[i]
 
 		var exp string
 		switch filter.method {
@@ -216,7 +191,17 @@ func (p *QueryParser) Where() string {
 		where = append(where, exp)
 	}
 
-	return " WHERE " + strings.Join(where, " AND ")
+	return strings.Join(where, " AND ")
+}
+
+// WhereSQL returns list of filters for WHERE SQL statement
+func (p *QueryParser) WhereSQL() string {
+
+	if len(p.Filters) == 0 {
+		return ""
+	}
+
+	return " WHERE " + p.Where()
 }
 
 // Args returns slice of arguments for WHERE statement
@@ -224,12 +209,12 @@ func (p *QueryParser) Args() []interface{} {
 
 	args := make([]interface{}, 0)
 
-	if len(p.filters) == 0 {
+	if len(p.Filters) == 0 {
 		return args
 	}
 
-	for i := 0; i < len(p.filters); i++ {
-		filter := p.filters[i]
+	for i := 0; i < len(p.Filters); i++ {
+		filter := p.Filters[i]
 
 		switch filter.method {
 		case MethodEQ, MethodNE, MethodGT, MethodLT, MethodGTE, MethodLTE:
@@ -252,19 +237,13 @@ func (p *QueryParser) Args() []interface{} {
 func (p *QueryParser) SQL(table string) string {
 	return fmt.Sprintf(
 		"SELECT %s FROM %s%s%s%s%s",
-		p.Fields(),
+		p.FieldsSQL(),
 		table,
-		p.Where(),
-		p.Sort(),
-		p.Limit(),
-		p.Offset(),
+		p.WhereSQL(),
+		p.SortSQL(),
+		p.LimitSQL(),
+		p.OffsetSQL(),
 	)
-}
-
-func defaults() *QueryParser {
-	return &QueryParser{
-		delimiter: ",",
-	}
 }
 
 // SetQuery change url query for the instance
@@ -280,7 +259,10 @@ func (p *QueryParser) SetValidations(validations Validations) *QueryParser {
 }
 
 func New(query map[string][]string, validations Validations) *QueryParser {
-	return defaults().SetQuery(query).SetValidations(validations)
+	QP := &QueryParser{
+		delimiter: ",",
+	}
+	return QP.SetQuery(query).SetValidations(validations)
 }
 
 func NewParse(query map[string][]string, validations Validations) (*QueryParser, error) {
@@ -398,7 +380,7 @@ func (p *QueryParser) parseSort(value []string, validate ValidationFunc) error {
 		})
 	}
 
-	p.sorts = sort
+	p.Sorts = sort
 
 	return nil
 }
@@ -420,7 +402,7 @@ func (p *QueryParser) parseFields(value []string, validate ValidationFunc) error
 			}
 		}
 
-		p.fields = list
+		p.Fields = list
 		return nil
 	}
 	return ErrBadFormat
@@ -438,13 +420,13 @@ func (p *QueryParser) parseOffset(value []string, validate ValidationFunc) error
 
 	var err error
 
-	p.offset, err = strconv.Atoi(value[0])
+	p.Offset, err = strconv.Atoi(value[0])
 	if err != nil {
 		return err
 	}
 
 	if validate != nil {
-		if err := validate(p.offset); err != nil {
+		if err := validate(p.Offset); err != nil {
 			return err
 		}
 	}
@@ -464,13 +446,13 @@ func (p *QueryParser) parseLimit(value []string, validate ValidationFunc) error 
 
 	var err error
 
-	p.limit, err = strconv.Atoi(value[0])
+	p.Limit, err = strconv.Atoi(value[0])
 	if err != nil {
 		return err
 	}
 
 	if validate != nil {
-		if err := validate(p.limit); err != nil {
+		if err := validate(p.Limit); err != nil {
 			return err
 		}
 	}
