@@ -146,3 +146,22 @@ func TestWhere(t *testing.T) {
 	}
 
 }
+
+func TestSQL(t *testing.T) {
+	URL, err := url.Parse("?fields=id,status&sort=id&offset=10&some=123")
+	assert.NoError(t, err)
+
+	q := New(URL.Query(), nil)
+	q.IgnoreUnknownFilters(true)
+	err = q.Parse()
+	assert.NoError(t, err)
+	assert.Equal(t, "SELECT id, status FROM test ORDER BY id OFFSET 10", q.SQL("test"))
+
+	q.SetValidations(Validations{
+		"some:int": nil,
+	})
+	err = q.Parse()
+	assert.NoError(t, err)
+
+	assert.Equal(t, "SELECT id, status FROM test WHERE some = ? ORDER BY id OFFSET 10", q.SQL("test"))
+}

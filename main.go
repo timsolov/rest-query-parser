@@ -75,7 +75,7 @@ func (p *QueryParser) Fields() string {
 // Offset returns OFFSET statement
 func (p *QueryParser) Offset() string {
 	if p.offset > 0 {
-		return fmt.Sprintf("OFFSET %d", p.offset)
+		return fmt.Sprintf(" OFFSET %d", p.offset)
 	}
 	return ""
 }
@@ -83,7 +83,7 @@ func (p *QueryParser) Offset() string {
 // Limit returns LIMIT statement
 func (p *QueryParser) Limit() string {
 	if p.limit > 0 {
-		return fmt.Sprintf("LIMIT %d", p.limit)
+		return fmt.Sprintf(" LIMIT %d", p.limit)
 	}
 	return ""
 }
@@ -95,9 +95,10 @@ func (p *QueryParser) Sort() string {
 		return ""
 	}
 
-	s := "ORDER BY "
+	s := " ORDER BY "
 
 	for i := 0; i < len(p.sort); i++ {
+		fmt.Println("i:", i, "by:", p.sort[i].by)
 		if i > 0 {
 			s += ", "
 		}
@@ -137,7 +138,7 @@ func (p *QueryParser) Where() string {
 		where = append(where, exp)
 	}
 
-	return strings.Join(where, " AND ")
+	return " WHERE " + strings.Join(where, " AND ")
 }
 
 // Args returns slice of arguments for WHERE statement
@@ -168,6 +169,18 @@ func (p *QueryParser) Args() []interface{} {
 	}
 
 	return args
+}
+
+func (p *QueryParser) SQL(table string) string {
+	return fmt.Sprintf(
+		"SELECT %s FROM %s%s%s%s%s",
+		p.Fields(),
+		table,
+		p.Where(),
+		p.Sort(),
+		p.Limit(),
+		p.Offset(),
+	)
 }
 
 func defaults() *QueryParser {
@@ -274,6 +287,8 @@ func (p *QueryParser) parseSort(value []string, validate ValidationFunc) error {
 
 	list = cleanSliceString(list)
 
+	sort := make([]Sort, 0)
+
 	for _, v := range list {
 
 		var (
@@ -299,11 +314,13 @@ func (p *QueryParser) parseSort(value []string, validate ValidationFunc) error {
 			}
 		}
 
-		p.sort = append(p.sort, Sort{
+		sort = append(sort, Sort{
 			by:   by,
 			desc: desc,
 		})
 	}
+
+	p.sort = sort
 
 	return nil
 }
