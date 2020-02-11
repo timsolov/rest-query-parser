@@ -44,7 +44,7 @@ type QueryParser struct {
 	offset  int
 	limit   int
 	sorts   []Sort
-	filters []*Filter
+	filters []Filter
 
 	delimiter     string
 	ignoreUnknown bool
@@ -169,12 +169,12 @@ func (p *QueryParser) HaveSortBy(by string) bool {
 }
 
 // GetFilters getter for filters
-func (p *QueryParser) GetFilters() []*Filter {
+func (p *QueryParser) GetFilters() []Filter {
 	return p.filters
 }
 
 // SetFilters setter for filters
-func (p *QueryParser) SetFilters(filters []*Filter) {
+func (p *QueryParser) SetFilters(filters []Filter) {
 	p.filters = filters
 }
 

@@ -63,9 +63,9 @@ func (f *Filter) setString(list []string) error {
 	return nil
 }
 
-func parseFilterKey(key string) (*Filter, error) {
+func parseFilterKey(key string) (Filter, error) {
 
-	f := &Filter{
+	f := Filter{
 		method: MethodEQ,
 	}
 
@@ -81,7 +81,7 @@ func parseFilterKey(key string) (*Filter, error) {
 			if epos-spos > 0 {
 				f.method = strings.ToUpper(key[spos:epos])
 				if _, ok := TranslateMethods[f.method]; !ok {
-					return nil, ErrUnknownMethod
+					return f, ErrUnknownMethod
 				}
 			}
 		}
@@ -92,7 +92,7 @@ func parseFilterKey(key string) (*Filter, error) {
 	return f, nil
 }
 
-func (p *QueryParser) parseFilterValue(filter *Filter, _type string, value []string, validate ValidationFunc) error {
+func (p *QueryParser) parseFilterValue(filter Filter, _type string, value []string, validate ValidationFunc) error {
 	if len(value) != 1 {
 		return ErrSimilarNames
 	}
