@@ -41,7 +41,7 @@ func TestOffset(t *testing.T) {
 	}{
 		{url: "?", expected: ""},
 		{url: "?offset=", expected: ""},
-		{url: "?offset=10", expected: "OFFSET 10"},
+		{url: "?offset=10", expected: " OFFSET 10"},
 	}
 	for _, c := range cases {
 		URL, err := url.Parse(c.url)
@@ -61,7 +61,7 @@ func TestLimit(t *testing.T) {
 	}{
 		{url: "?", expected: ""},
 		{url: "?limit=", expected: ""},
-		{url: "?limit=10", expected: "LIMIT 10"},
+		{url: "?limit=10", expected: " LIMIT 10"},
 	}
 	for _, c := range cases {
 		URL, err := url.Parse(c.url)
@@ -81,10 +81,10 @@ func TestSort(t *testing.T) {
 	}{
 		{url: "?", expected: ""},
 		{url: "?sort=", expected: ""},
-		{url: "?sort=id", expected: "ORDER BY id"},
-		{url: "?sort=+id", expected: "ORDER BY id"},
-		{url: "?sort=-id", expected: "ORDER BY id DESC"},
-		{url: "?sort=id,-name", expected: "ORDER BY id, name DESC"},
+		{url: "?sort=id", expected: " ORDER BY id"},
+		{url: "?sort=+id", expected: " ORDER BY id"},
+		{url: "?sort=-id", expected: " ORDER BY id DESC"},
+		{url: "?sort=id,-name", expected: " ORDER BY id, name DESC"},
 	}
 	for _, c := range cases {
 		URL, err := url.Parse(c.url)
@@ -108,17 +108,17 @@ func TestWhere(t *testing.T) {
 		{url: "?id", expected: "", err: ErrBadFormat},
 		{url: "?id=", expected: "", err: ErrBadFormat},
 		{url: "?id=1,2", expected: "", err: ErrMethodNotAllowed},
-		{url: "?id=4", expected: "id = ?"},
-		{url: "?id=1&name=superman", expected: "id = ?", err: nil, ignore: true},
-		{url: "?id=1&name=superman&s[like]=super", expected: "id = ? AND s LIKE ?", expected2: "s LIKE ? AND id = ?", err: nil, ignore: true},
-		{url: "?s=super", expected: "s = ?", err: nil},
+		{url: "?id=4", expected: " WHERE id = ?"},
+		{url: "?id=1&name=superman", expected: " WHERE id = ?", err: nil, ignore: true},
+		{url: "?id=1&name=superman&s[like]=super", expected: " WHERE id = ? AND s LIKE ?", expected2: " WHERE s LIKE ? AND id = ?", err: nil, ignore: true},
+		{url: "?s=super", expected: " WHERE s = ?", err: nil},
 		{url: "?s=puper", expected: "", err: ErrNotInScope},
-		{url: "?id[in]=1,2", expected: "id IN (?, ?)"},
+		{url: "?id[in]=1,2", expected: " WHERE id IN (?, ?)"},
 		{url: "?id[eq]=1&id[eq]=4", err: ErrSimilarNames},
-		{url: "?id[gte]=1&id[lte]=4", expected: "id >= ? AND id <= ?", expected2: "id <= ? AND id >= ?"},
+		{url: "?id[gte]=1&id[lte]=4", expected: " WHERE id >= ? AND id <= ?", expected2: " WHERE id <= ? AND id >= ?"},
 	}
 	for _, c := range cases {
-
+		//t.Log(c)
 		URL, err := url.Parse(c.url)
 		assert.NoError(t, err)
 
@@ -138,8 +138,10 @@ func TestWhere(t *testing.T) {
 		assert.Equal(t, c.err, err)
 		where := q.Where()
 		if len(c.expected2) > 0 {
+			//t.Log(where)
 			assert.True(t, c.expected == where || c.expected2 == where)
 		} else {
+			//t.Log(where)
 			assert.True(t, c.expected == where)
 		}
 

@@ -43,7 +43,7 @@ type QueryParser struct {
 	fields  []string
 	offset  int
 	limit   int
-	sort    []Sort
+	sorts   []Sort
 	filters []*Filter
 
 	delimiter     string
@@ -72,12 +72,37 @@ func (p *QueryParser) Fields() string {
 	return strings.Join(p.fields, ", ")
 }
 
+// GetFields getter for fields
+func (p *QueryParser) GetFields() []string {
+	return p.fields
+}
+
+// SetFields setter for fields
+func (p *QueryParser) SetFields(fields []string) {
+	p.fields = fields
+}
+
+// AskField returns true if request asks for field
+func (p *QueryParser) HaveField(field string) bool {
+	return stringInSlice(field, p.fields)
+}
+
 // Offset returns OFFSET statement
 func (p *QueryParser) Offset() string {
 	if p.offset > 0 {
 		return fmt.Sprintf(" OFFSET %d", p.offset)
 	}
 	return ""
+}
+
+// GetOffset getter for offset
+func (p *QueryParser) GetOffset() int {
+	return p.offset
+}
+
+// SetOffset setter for offset
+func (p *QueryParser) SetOffset(offset int) {
+	p.offset = offset
 }
 
 // Limit returns LIMIT statement
@@ -88,28 +113,81 @@ func (p *QueryParser) Limit() string {
 	return ""
 }
 
+// GetLimit getter for limit
+func (p *QueryParser) GetLimit() int {
+	return p.limit
+}
+
+// GetLimit setter for limit
+func (p *QueryParser) SetLimit(limit int) {
+	p.limit = limit
+}
+
 // Sort returns ORDER BY statement
 // you can use +/- prefix to specify direction of sorting (+ is default)
 func (p *QueryParser) Sort() string {
-	if len(p.sort) == 0 {
+	if len(p.sorts) == 0 {
 		return ""
 	}
 
 	s := " ORDER BY "
 
-	for i := 0; i < len(p.sort); i++ {
-		fmt.Println("i:", i, "by:", p.sort[i].by)
+	for i := 0; i < len(p.sorts); i++ {
 		if i > 0 {
 			s += ", "
 		}
-		if p.sort[i].desc {
-			s += fmt.Sprintf("%s DESC", p.sort[i].by)
+		if p.sorts[i].desc {
+			s += fmt.Sprintf("%s DESC", p.sorts[i].by)
 		} else {
-			s += p.sort[i].by
+			s += p.sorts[i].by
 		}
 	}
 
 	return s
+}
+
+// GetSorts getter for sort
+func (p *QueryParser) GetSorts() []Sort {
+	return p.sorts
+}
+
+// SetSorts setter for sort
+func (p *QueryParser) SetSorts(sort []Sort) {
+	p.sorts = sort
+}
+
+// HaveSortBy returns true if request contains some sorting
+func (p *QueryParser) HaveSortBy(by string) bool {
+
+	for _, v := range p.sorts {
+		if v.by == by {
+			return true
+		}
+	}
+
+	return false
+}
+
+// GetFilters getter for filters
+func (p *QueryParser) GetFilters() []*Filter {
+	return p.filters
+}
+
+// SetFilters setter for filters
+func (p *QueryParser) SetFilters(filters []*Filter) {
+	p.filters = filters
+}
+
+// HaveFilter returns true if request contains some filter
+func (p *QueryParser) HaveFilter(key string) bool {
+
+	for _, v := range p.filters {
+		if v.name == key {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Where returns list of filters for WHERE statement
@@ -320,7 +398,7 @@ func (p *QueryParser) parseSort(value []string, validate ValidationFunc) error {
 		})
 	}
 
-	p.sort = sort
+	p.sorts = sort
 
 	return nil
 }
