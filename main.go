@@ -1,16 +1,9 @@
 package rqp
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
-)
-
-var (
-	ErrBadFormat        error = errors.New("bad format")
-	ErrUnknownCmpMethod error = errors.New("unknown compare method")
-	ErrMethodNotAllowed error = errors.New("not allowed method")
 )
 
 var (
@@ -18,9 +11,9 @@ var (
 	MethodNE   string = "NE"
 	MethodGT   string = "GT"
 	MethodLT   string = "LT"
-	MethodLIKE string = "LIKE"
 	MethodGTE  string = "GTE"
 	MethodLTE  string = "LTE"
+	MethodLIKE string = "LIKE"
 	MethodNOT  string = "NOT"
 	MethodIN   string = "IN"
 
@@ -31,216 +24,239 @@ var (
 		MethodLT:   "<",
 		MethodGTE:  ">=",
 		MethodLTE:  "<=",
-		MethodNOT:  "NOT",
 		MethodLIKE: "LIKE",
+		MethodNOT:  "NOT",
 		MethodIN:   "IN",
 	}
 )
-
-type ValidationFunc func(value interface{}) error
-
-type QueryParser struct {
-	Fields  []string
-	Offset  int
-	Limit   int
-	Sort    []Sort
-	Filters []*Filter
-
-	delimiter string
-}
 
 type Sort struct {
 	by   string
 	desc bool
 }
 
-type Filter struct {
-	name   string
-	value  interface{}
-	method string
+// QueryParser contatins of all major data
+type QueryParser struct {
+	query       map[string][]string
+	validations Validations
+
+	fields  []string
+	offset  int
+	limit   int
+	sort    []Sort
+	filters []*Filter
+
+	delimiter     string
+	ignoreUnknown bool
+
+	ErrorMessage string
 }
 
-func defaultQueryParser() *QueryParser {
+// Delimiter sets delimiter for values of multiple filter
+func (p *QueryParser) Delimiter(delimiter string) *QueryParser {
+	p.delimiter = delimiter
+	return p
+}
+
+// IgnoreUnknownFilters set behavior for Parser to raise ErrFilterNotAllowed to undefined filters or not
+func (p *QueryParser) IgnoreUnknownFilters(i bool) *QueryParser {
+	p.ignoreUnknown = i
+	return p
+}
+
+// Fields returns elements for querying in SELECT statement or * if fields parameter not specified
+func (p *QueryParser) Fields() string {
+	if len(p.fields) == 0 {
+		return "*"
+	}
+	return strings.Join(p.fields, ", ")
+}
+
+// Offset returns OFFSET statement
+func (p *QueryParser) Offset() string {
+	if p.offset > 0 {
+		return fmt.Sprintf("OFFSET %d", p.offset)
+	}
+	return ""
+}
+
+// Limit returns LIMIT statement
+func (p *QueryParser) Limit() string {
+	if p.limit > 0 {
+		return fmt.Sprintf("LIMIT %d", p.limit)
+	}
+	return ""
+}
+
+// Sort returns ORDER BY statement
+// you can use +/- prefix to specify direction of sorting (+ is default)
+func (p *QueryParser) Sort() string {
+	if len(p.sort) == 0 {
+		return ""
+	}
+
+	s := "ORDER BY "
+
+	for i := 0; i < len(p.sort); i++ {
+		if i > 0 {
+			s += ", "
+		}
+		if p.sort[i].desc {
+			s += fmt.Sprintf("%s DESC", p.sort[i].by)
+		} else {
+			s += p.sort[i].by
+		}
+	}
+
+	return s
+}
+
+// Where returns list of filters for WHERE statement
+func (p *QueryParser) Where() string {
+
+	if len(p.filters) == 0 {
+		return ""
+	}
+
+	var where []string
+
+	for i := 0; i < len(p.filters); i++ {
+		filter := p.filters[i]
+
+		var exp string
+		switch filter.method {
+		case MethodEQ, MethodNE, MethodGT, MethodLT, MethodGTE, MethodLTE, MethodLIKE:
+			exp = fmt.Sprintf("%s %s ?", filter.name, TranslateMethods[filter.method])
+		case MethodIN:
+			exp = fmt.Sprintf("%s %s (?)", filter.name, TranslateMethods[filter.method])
+			exp, _, _ = in(exp, filter.value)
+		default:
+			continue
+		}
+
+		where = append(where, exp)
+	}
+
+	return strings.Join(where, " AND ")
+}
+
+// Args returns slice of arguments for WHERE statement
+func (p *QueryParser) Args() []interface{} {
+
+	args := make([]interface{}, 0)
+
+	if len(p.filters) == 0 {
+		return args
+	}
+
+	for i := 0; i < len(p.filters); i++ {
+		filter := p.filters[i]
+
+		switch filter.method {
+		case MethodEQ, MethodNE, MethodGT, MethodLT, MethodGTE, MethodLTE:
+			args = append(args, filter.value)
+		case MethodLIKE:
+			value := filter.value.(string)
+			value = strings.Replace(value, "*", "%", -1)
+			args = append(args, value)
+		case MethodIN:
+			_, params, _ := in("?", filter.value)
+			args = append(args, params...)
+		default:
+			continue
+		}
+	}
+
+	return args
+}
+
+func defaults() *QueryParser {
 	return &QueryParser{
 		delimiter: ",",
 	}
 }
 
-func (p *QueryParser) Delimiter(delimiter string) {
-	p.delimiter = delimiter
+// SetQuery change url query for the instance
+func (p *QueryParser) SetQuery(query map[string][]string) *QueryParser {
+	p.query = query
+	return p
 }
 
-func Parse(query map[string][]string, validations map[string]ValidationFunc) (p *QueryParser, err error) {
+// SetValidations change validations rules for the instance
+func (p *QueryParser) SetValidations(validations Validations) *QueryParser {
+	p.validations = validations
+	return p
+}
 
-	p = defaultQueryParser()
+func New(query map[string][]string, validations Validations) *QueryParser {
+	return defaults().SetQuery(query).SetValidations(validations)
+}
 
-	for key, value := range query {
+func NewParse(query map[string][]string, validations Validations) (*QueryParser, error) {
+	q := New(query, validations)
+	return q, q.Parse()
+}
+
+// Parse parses the query of URL
+// as query you can use standart http.Request query by r.URL.Query()
+func (p *QueryParser) Parse() error {
+
+	for key, value := range p.query {
 
 		if strings.ToUpper(key) == "FIELDS" {
-			if err = p.parseFields(value, validations[key]); err != nil {
-				return nil, err
+			if err := p.parseFields(value, p.validations[key]); err != nil {
+				return err
 			}
 		} else if strings.ToUpper(key) == "OFFSET" {
-			if err = p.parseOffset(value, validations[key]); err != nil {
-				return nil, err
+			if err := p.parseOffset(value, p.validations[key]); err != nil {
+				return err
 			}
 		} else if strings.ToUpper(key) == "LIMIT" {
-			if err = p.parseLimit(value, validations[key]); err != nil {
-				return nil, err
+			if err := p.parseLimit(value, p.validations[key]); err != nil {
+				return err
 			}
 		} else if strings.ToUpper(key) == "SORT" {
-			if err = p.parseSort(value, validations[key]); err != nil {
-				return nil, err
+			if err := p.parseSort(value, p.validations[key]); err != nil {
+				return err
 			}
-		} else if len(key) > 7 && strings.ToUpper(key[:7]) == "FILTER[" {
+		} else {
 			filter, err := parseFilterKey(key)
 			if err != nil {
-				return nil, err
+				return err
 			}
-			validationFunc := validations[filter.name]
+
+			allowed := false
+			validationFunc := p.validations[filter.name]
 			_type := "string"
-			for k, v := range validations {
+
+			for k, v := range p.validations {
 				if strings.Contains(k, ":") {
 					split := strings.Split(k, ":")
 					if split[0] == filter.name {
+						allowed = true
 						validationFunc = v
 						_type = split[1]
+						break
 					}
+				} else if k == filter.name {
+					allowed = true
+					break
+				}
+			}
+
+			if !allowed {
+				if p.ignoreUnknown {
+					continue
+				} else {
+					return ErrFilterNotAllowed
 				}
 			}
 
 			if err = p.parseFilterValue(filter, _type, value, validationFunc); err != nil {
-				return nil, err
-			}
-
-			fmt.Println("filter:", key, *filter, _type, validationFunc)
-		}
-	}
-
-	return
-}
-
-func parseFilterKey(key string) (*Filter, error) {
-
-	f := &Filter{}
-
-	// skip "filter["
-	key = key[7:]
-	pos := strings.Index(key, "]")
-	if pos == -1 {
-		return nil, ErrBadFormat
-	}
-
-	// get variable name
-	f.name = key[:pos]
-	cmpMethod := MethodEQ
-	// skip to text after "]"
-	key = key[pos:]
-	// get comparison method
-	if len(key) > 0 && key[0] == '[' {
-		// skip first "["
-		key = key[1:]
-		pos = strings.Index(key, "]")
-		if pos == -1 {
-			return nil, ErrBadFormat
-		}
-		cmpMethod = key[:pos]
-	}
-
-	if _, ok := TranslateMethods[strings.ToUpper(cmpMethod)]; !ok {
-		return nil, ErrUnknownCmpMethod
-	}
-	f.method = cmpMethod
-
-	return f, nil
-}
-
-func (f *Filter) setInt(list []string) error {
-	if len(list) == 1 {
-
-		if f.method != MethodEQ &&
-			f.method != MethodNE &&
-			f.method != MethodGT &&
-			f.method != MethodLT &&
-			f.method != MethodGTE &&
-			f.method != MethodLTE {
-			return ErrMethodNotAllowed
-		}
-
-		i, err := strconv.Atoi(list[0])
-		if err != nil {
-			return err
-		}
-		f.value = i
-	} else {
-		if f.method != MethodIN {
-			return ErrMethodNotAllowed
-		}
-		intSlice := make([]int, len(list))
-		for i, s := range list {
-			v, err := strconv.Atoi(s)
-			if err != nil {
-				return err
-			}
-			intSlice[i] = v
-		}
-		f.value = intSlice
-	}
-	return nil
-}
-
-func (f *Filter) setString(list []string) error {
-	if len(list) == 1 {
-		if f.method != MethodEQ &&
-			f.method != MethodNE &&
-			f.method != MethodLIKE {
-			return ErrMethodNotAllowed
-		}
-		f.value = list[0]
-	} else {
-		if f.method != MethodIN {
-			return ErrMethodNotAllowed
-		}
-		f.value = list
-	}
-	return nil
-}
-
-func (p *QueryParser) parseFilterValue(filter *Filter, _type string, value []string, validate ValidationFunc) error {
-	if len(value) != 1 {
-		return ErrBadFormat
-	}
-
-	list := value
-	if strings.Contains(value[0], p.delimiter) {
-		list = strings.Split(value[0], p.delimiter)
-	}
-
-	switch _type {
-	case "int":
-		err := filter.setInt(list)
-		if err != nil {
-			return err
-		}
-		if validate != nil {
-			if err := validate(filter.value); err != nil {
+				p.ErrorMessage = fmt.Sprintf("%s: %v", key, err)
 				return err
 			}
 		}
-		p.Filters = append(p.Filters, filter)
-	default: // str, string and all other unknown types will handle like string
-		err := filter.setString(list)
-		if err != nil {
-			return err
-		}
-		if validate != nil {
-			for _, v := range list {
-				if err := validate(v); err != nil {
-					return err
-				}
-			}
-		}
-		p.Filters = append(p.Filters, filter)
 	}
 
 	return nil
@@ -255,6 +271,8 @@ func (p *QueryParser) parseSort(value []string, validate ValidationFunc) error {
 	if strings.Contains(value[0], p.delimiter) {
 		list = strings.Split(value[0], p.delimiter)
 	}
+
+	list = cleanSliceString(list)
 
 	for _, v := range list {
 
@@ -281,7 +299,7 @@ func (p *QueryParser) parseSort(value []string, validate ValidationFunc) error {
 			}
 		}
 
-		p.Sort = append(p.Sort, Sort{
+		p.sort = append(p.sort, Sort{
 			by:   by,
 			desc: desc,
 		})
@@ -297,6 +315,8 @@ func (p *QueryParser) parseFields(value []string, validate ValidationFunc) error
 			list = strings.Split(value[0], p.delimiter)
 		}
 
+		list = cleanSliceString(list)
+
 		if validate != nil {
 			for _, v := range list {
 				if err := validate(v); err != nil {
@@ -305,7 +325,7 @@ func (p *QueryParser) parseFields(value []string, validate ValidationFunc) error
 			}
 		}
 
-		p.Fields = list
+		p.fields = list
 		return nil
 	}
 	return ErrBadFormat
@@ -316,15 +336,20 @@ func (p *QueryParser) parseOffset(value []string, validate ValidationFunc) error
 	if len(value) != 1 {
 		return ErrBadFormat
 	}
+
+	if len(value[0]) == 0 {
+		return nil
+	}
+
 	var err error
 
-	p.Offset, err = strconv.Atoi(value[0])
+	p.offset, err = strconv.Atoi(value[0])
 	if err != nil {
 		return err
 	}
 
 	if validate != nil {
-		if err := validate(p.Offset); err != nil {
+		if err := validate(p.offset); err != nil {
 			return err
 		}
 	}
@@ -338,38 +363,22 @@ func (p *QueryParser) parseLimit(value []string, validate ValidationFunc) error 
 		return ErrBadFormat
 	}
 
+	if len(value[0]) == 0 {
+		return nil
+	}
+
 	var err error
 
-	p.Limit, err = strconv.Atoi(value[0])
+	p.limit, err = strconv.Atoi(value[0])
 	if err != nil {
 		return err
 	}
 
 	if validate != nil {
-		if err := validate(p.Limit); err != nil {
+		if err := validate(p.limit); err != nil {
 			return err
 		}
 	}
 
 	return nil
-}
-
-func In(values ...interface{}) ValidationFunc {
-	return func(value interface{}) error {
-
-		in := false
-
-		for _, v := range values {
-			if v == value {
-				in = true
-				break
-			}
-		}
-
-		if !in {
-			return errors.New(fmt.Sprintf("%s: not in scope", value))
-		}
-
-		return nil
-	}
 }
