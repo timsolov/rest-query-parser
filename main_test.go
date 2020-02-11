@@ -167,3 +167,35 @@ func TestSQL(t *testing.T) {
 
 	assert.Equal(t, "SELECT id, status FROM test WHERE some = ? ORDER BY id OFFSET 10", q.SQL("test"))
 }
+
+func TestReplaceFiltersNames(t *testing.T) {
+	URL, err := url.Parse("?one=123&another=yes")
+	assert.NoError(t, err)
+
+	q, err := NewParse(URL.Query(), Validations{
+		"one": nil, "another": nil,
+	})
+	assert.NoError(t, err)
+
+	q.ReplaceFiltersNames(FiltersNamesReplacer{
+		"one": "another",
+	})
+
+	assert.Len(t, q.Filters, 2)
+	assert.True(t, q.HaveFilter("one"))
+	assert.True(t, q.HaveFilter("another"))
+
+	q.ReplaceFiltersNames(FiltersNamesReplacer{
+		"one":        "two",
+		"another":    "r.another",
+		"nonpresent": "hello",
+	})
+
+	assert.Len(t, q.Filters, 2)
+	assert.True(t, q.HaveFilter("two"))
+	assert.True(t, q.HaveFilter("r.another"))
+	assert.False(t, q.HaveFilter("one"))
+	assert.False(t, q.HaveFilter("another"))
+	assert.False(t, q.HaveFilter("nonpresent"))
+	assert.False(t, q.HaveFilter("hello"))
+}

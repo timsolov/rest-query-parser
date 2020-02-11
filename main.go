@@ -48,8 +48,8 @@ var (
 )
 
 type Sort struct {
-	by   string
-	desc bool
+	By   string
+	Desc bool
 }
 
 // Delimiter sets delimiter for values of multiple filter
@@ -111,10 +111,10 @@ func (p *QueryParser) SortSQL() string {
 		if i > 0 {
 			s += ", "
 		}
-		if p.Sorts[i].desc {
-			s += fmt.Sprintf("%s DESC", p.Sorts[i].by)
+		if p.Sorts[i].Desc {
+			s += fmt.Sprintf("%s DESC", p.Sorts[i].By)
 		} else {
-			s += p.Sorts[i].by
+			s += p.Sorts[i].By
 		}
 	}
 
@@ -135,34 +135,42 @@ func (p *QueryParser) SetSorts(sort []Sort) {
 func (p *QueryParser) HaveSortBy(by string) bool {
 
 	for _, v := range p.Sorts {
-		if v.by == by {
+		if v.By == by {
 			return true
 		}
 	}
 
 	return false
-}
-
-// GetFilters getter for filters
-func (p *QueryParser) GetFilters() []Filter {
-	return p.Filters
-}
-
-// SetFilters setter for filters
-func (p *QueryParser) SetFilters(filters []Filter) {
-	p.Filters = filters
 }
 
 // HaveFilter returns true if request contains some filter
-func (p *QueryParser) HaveFilter(key string) bool {
+func (p *QueryParser) HaveFilter(name string) bool {
 
 	for _, v := range p.Filters {
-		if v.name == key {
+		if v.Name == name {
 			return true
 		}
 	}
 
 	return false
+}
+
+// FiltersNamesReplacer struct for ReplaceFiltersNames method
+type FiltersNamesReplacer map[string]string
+
+// ReplaceFiltersNames replace all specified name to new names
+// parameter is map[string]string which means map[currentName]newName
+// usage: rqp.ReplaceFiltersNames(rqp.FiltersNamesReplacer{"oldName":"newName"})
+func (p *QueryParser) ReplaceFiltersNames(replacer FiltersNamesReplacer) {
+
+	for name, newname := range replacer {
+		for i, v := range p.Filters {
+			if v.Name == name && !p.HaveFilter(newname) {
+				p.Filters[i].Name = newname
+			}
+		}
+	}
+
 }
 
 // Where returns list of filters for WHERE statement
@@ -178,12 +186,12 @@ func (p *QueryParser) Where() string {
 		filter := p.Filters[i]
 
 		var exp string
-		switch filter.method {
+		switch filter.Method {
 		case MethodEQ, MethodNE, MethodGT, MethodLT, MethodGTE, MethodLTE, MethodLIKE:
-			exp = fmt.Sprintf("%s %s ?", filter.name, TranslateMethods[filter.method])
+			exp = fmt.Sprintf("%s %s ?", filter.Name, TranslateMethods[filter.Method])
 		case MethodIN:
-			exp = fmt.Sprintf("%s %s (?)", filter.name, TranslateMethods[filter.method])
-			exp, _, _ = in(exp, filter.value)
+			exp = fmt.Sprintf("%s %s (?)", filter.Name, TranslateMethods[filter.Method])
+			exp, _, _ = in(exp, filter.Value)
 		default:
 			continue
 		}
@@ -216,15 +224,15 @@ func (p *QueryParser) Args() []interface{} {
 	for i := 0; i < len(p.Filters); i++ {
 		filter := p.Filters[i]
 
-		switch filter.method {
+		switch filter.Method {
 		case MethodEQ, MethodNE, MethodGT, MethodLT, MethodGTE, MethodLTE:
-			args = append(args, filter.value)
+			args = append(args, filter.Value)
 		case MethodLIKE:
-			value := filter.value.(string)
+			value := filter.Value.(string)
 			value = strings.Replace(value, "*", "%", -1)
 			args = append(args, value)
 		case MethodIN:
-			_, params, _ := in("?", filter.value)
+			_, params, _ := in("?", filter.Value)
 			args = append(args, params...)
 		default:
 			continue
@@ -299,19 +307,19 @@ func (p *QueryParser) Parse() error {
 			}
 
 			allowed := false
-			validationFunc := p.validations[filter.name]
+			validationFunc := p.validations[filter.Name]
 			_type := "string"
 
 			for k, v := range p.validations {
 				if strings.Contains(k, ":") {
 					split := strings.Split(k, ":")
-					if split[0] == filter.name {
+					if split[0] == filter.Name {
 						allowed = true
 						validationFunc = v
 						_type = split[1]
 						break
 					}
-				} else if k == filter.name {
+				} else if k == filter.Name {
 					allowed = true
 					break
 				}
@@ -375,8 +383,8 @@ func (p *QueryParser) parseSort(value []string, validate ValidationFunc) error {
 		}
 
 		sort = append(sort, Sort{
-			by:   by,
-			desc: desc,
+			By:   by,
+			Desc: desc,
 		})
 	}
 

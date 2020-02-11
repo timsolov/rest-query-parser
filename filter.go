@@ -1,25 +1,30 @@
 package rqp
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 )
 
 type Filter struct {
-	name       string
-	value      interface{}
-	method     string
-	expression string
+	Name       string
+	Value      interface{}
+	Method     string
+	Expression string
+}
+
+func (f Filter) String() string {
+	return fmt.Sprintf("Name: %v Value: %v Method: %v Exp: %v", f.Name, f.Value, f.Method, f.Expression)
 }
 
 func (f *Filter) setInt(list []string) error {
 	if len(list) == 1 {
-		if f.method != MethodEQ &&
-			f.method != MethodNE &&
-			f.method != MethodGT &&
-			f.method != MethodLT &&
-			f.method != MethodGTE &&
-			f.method != MethodLTE {
+		if f.Method != MethodEQ &&
+			f.Method != MethodNE &&
+			f.Method != MethodGT &&
+			f.Method != MethodLT &&
+			f.Method != MethodGTE &&
+			f.Method != MethodLTE {
 			return ErrMethodNotAllowed
 		}
 
@@ -27,9 +32,9 @@ func (f *Filter) setInt(list []string) error {
 		if err != nil {
 			return ErrBadFormat
 		}
-		f.value = i
+		f.Value = i
 	} else {
-		if f.method != MethodIN {
+		if f.Method != MethodIN {
 			return ErrMethodNotAllowed
 		}
 		intSlice := make([]int, len(list))
@@ -40,25 +45,25 @@ func (f *Filter) setInt(list []string) error {
 			}
 			intSlice[i] = v
 		}
-		f.value = intSlice
+		f.Value = intSlice
 	}
 	return nil
 }
 
 func (f *Filter) setString(list []string) error {
 	if len(list) == 1 {
-		if f.method != MethodEQ &&
-			f.method != MethodNE &&
-			f.method != MethodLIKE &&
-			f.method != MethodIN {
+		if f.Method != MethodEQ &&
+			f.Method != MethodNE &&
+			f.Method != MethodLIKE &&
+			f.Method != MethodIN {
 			return ErrMethodNotAllowed
 		}
-		f.value = list[0]
+		f.Value = list[0]
 	} else {
-		if f.method != MethodIN {
+		if f.Method != MethodIN {
 			return ErrMethodNotAllowed
 		}
-		f.value = list
+		f.Value = list
 	}
 	return nil
 }
@@ -66,12 +71,12 @@ func (f *Filter) setString(list []string) error {
 func parseFilterKey(key string) (Filter, error) {
 
 	f := Filter{
-		method: MethodEQ,
+		Method: MethodEQ,
 	}
 
 	spos := strings.Index(key, "[")
 	if spos != -1 {
-		f.name = key[:spos]
+		f.Name = key[:spos]
 		epos := strings.Index(key[spos:], "]")
 		if epos != -1 {
 			// go inside brekets
@@ -79,14 +84,14 @@ func parseFilterKey(key string) (Filter, error) {
 			epos = spos + epos - 1
 
 			if epos-spos > 0 {
-				f.method = strings.ToUpper(key[spos:epos])
-				if _, ok := TranslateMethods[f.method]; !ok {
+				f.Method = strings.ToUpper(key[spos:epos])
+				if _, ok := TranslateMethods[f.Method]; !ok {
 					return f, ErrUnknownMethod
 				}
 			}
 		}
 	} else {
-		f.name = key
+		f.Name = key
 	}
 
 	return f, nil
@@ -109,7 +114,7 @@ func (p *QueryParser) parseFilterValue(filter Filter, _type string, value []stri
 			return err
 		}
 		if validate != nil {
-			if err := validate(filter.value); err != nil {
+			if err := validate(filter.Value); err != nil {
 				return err
 			}
 		}
