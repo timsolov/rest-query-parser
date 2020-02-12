@@ -101,20 +101,20 @@ func TestWhere(t *testing.T) {
 		url       string
 		expected  string
 		expected2 string
-		err       error
+		err       string
 		ignore    bool
 	}{
 		{url: "?", expected: ""},
-		{url: "?id", expected: "", err: ErrBadFormat},
-		{url: "?id=", expected: "", err: ErrBadFormat},
-		{url: "?id=1,2", expected: "", err: ErrMethodNotAllowed},
+		{url: "?id", expected: "", err: "id: bad format"},
+		{url: "?id=", expected: "", err: "id: bad format"},
+		{url: "?id=1,2", expected: "", err: "id: method are not allowed"},
 		{url: "?id=4", expected: " WHERE id = ?"},
-		{url: "?id=1&name=superman", expected: " WHERE id = ?", err: nil, ignore: true},
-		{url: "?id=1&name=superman&s[like]=super", expected: " WHERE id = ? AND s LIKE ?", expected2: " WHERE s LIKE ? AND id = ?", err: nil, ignore: true},
-		{url: "?s=super", expected: " WHERE s = ?", err: nil},
-		{url: "?s=puper", expected: "", err: ErrNotInScope},
+		{url: "?id=1&name=superman", expected: " WHERE id = ?", ignore: true},
+		{url: "?id=1&name=superman&s[like]=super", expected: " WHERE id = ? AND s LIKE ?", expected2: " WHERE s LIKE ? AND id = ?", ignore: true},
+		{url: "?s=super", expected: " WHERE s = ?"},
+		{url: "?s=puper", expected: "", err: "s: not in scope"},
 		{url: "?id[in]=1,2", expected: " WHERE id IN (?, ?)"},
-		{url: "?id[eq]=1&id[eq]=4", err: ErrSimilarNames},
+		{url: "?id[eq]=1&id[eq]=4", err: "id[eq]: similar names of keys are not allowed"},
 		{url: "?id[gte]=1&id[lte]=4", expected: " WHERE id >= ? AND id <= ?", expected2: " WHERE id <= ? AND id >= ?"},
 	}
 	for _, c := range cases {
@@ -135,7 +135,9 @@ func TestWhere(t *testing.T) {
 		q.IgnoreUnknownFilters(c.ignore)
 		err = q.Parse()
 
-		assert.Equal(t, c.err, err)
+		if len(c.err) > 0 {
+			assert.EqualError(t, err, c.err)
+		}
 		where := q.WhereSQL()
 		if len(c.expected2) > 0 {
 			//t.Log(where)
@@ -198,4 +200,24 @@ func TestReplaceFiltersNames(t *testing.T) {
 	assert.False(t, q.HaveFilter("another"))
 	assert.False(t, q.HaveFilter("nonpresent"))
 	assert.False(t, q.HaveFilter("hello"))
+}
+
+func TestRequiredFilter(t *testing.T) {
+	// required but not present
+	URL, err := url.Parse("?one=1")
+	assert.NoError(t, err)
+
+	qp, err := NewParse(URL.Query(), Validations{"limit:required": nil})
+	assert.EqualError(t, err, "limit: required")
+
+	// required and present
+	URL, err = url.Parse("?limit=10&one[eq]=1")
+	assert.NoError(t, err)
+
+	qp, err = NewParse(URL.Query(), Validations{"limit:required": nil, "one:int": nil})
+	assert.NoError(t, err)
+	_, present := qp.validations["limit:required"]
+	assert.False(t, present)
+	_, present = qp.validations["limit"]
+	assert.True(t, present)
 }

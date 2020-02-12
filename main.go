@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"errors"
 )
 
 // QueryParser contatins of all major data
@@ -282,6 +284,40 @@ func NewParse(query map[string][]string, validations Validations) (*QueryParser,
 // as query you can use standart http.Request query by r.URL.Query()
 func (p *QueryParser) Parse() error {
 
+	// check if required
+	for name, f := range p.validations {
+		if strings.Contains(name, ":required") {
+			oldname := name
+			newname := strings.Replace(name, ":required", "", 1)
+
+			if strings.Contains(newname, ":") {
+				parts := strings.Split(newname, ":")
+				name = parts[0]
+			} else {
+				name = newname
+			}
+
+			found := false
+			for key, _ := range p.query {
+				filter, err := parseFilterKey(key)
+				if err != nil {
+					return err
+				}
+				if filter.Name == name {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				return errors.New(fmt.Sprintf("%s: required", name))
+			} else {
+				p.validations[newname] = f
+				delete(p.validations, oldname)
+			}
+		}
+	}
+
 	for key, value := range p.query {
 
 		if strings.ToUpper(key) == "FIELDS" {
@@ -334,8 +370,7 @@ func (p *QueryParser) Parse() error {
 			}
 
 			if err = p.parseFilterValue(filter, _type, value, validationFunc); err != nil {
-				p.ErrorMessage = fmt.Sprintf("%s: %v", key, err)
-				return err
+				return errors.New(fmt.Sprintf("%s: %v", key, err))
 			}
 		}
 	}
