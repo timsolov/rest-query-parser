@@ -24,14 +24,7 @@ func In(values ...interface{}) ValidationFunc {
 		}
 
 		if !in {
-			switch v.(type) {
-			case string:
-				return errors.Wrap(ErrNotInScope, value.(string))
-			case int:
-				return errors.Wrapf(ErrNotInScope, "%d", value.(int))
-			default:
-				return ErrNotInScope
-			}
+			return errors.Wrapf(ErrNotInScope, "%v", value)
 		}
 
 		return nil

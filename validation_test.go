@@ -18,4 +18,5 @@ func TestIn(t *testing.T) {
 
 	err = In(true)(false)
 	assert.Equal(t, errors.Cause(err), ErrNotInScope)
+	assert.EqualError(t, err, "false: not in scope")
 }
