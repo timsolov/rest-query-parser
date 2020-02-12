@@ -97,7 +97,7 @@ func parseFilterKey(key string) (Filter, error) {
 	return f, nil
 }
 
-func (p *QueryParser) parseFilterValue(filter Filter, _type string, value []string, validate ValidationFunc) error {
+func (p *Query) parseFilterValue(filter Filter, _type string, value []string, validate ValidationFunc) error {
 	if len(value) != 1 {
 		return ErrSimilarNames
 	}

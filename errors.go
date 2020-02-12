@@ -3,6 +3,7 @@ package rqp
 import "errors"
 
 var (
+	ErrRequired         error = errors.New("required")
 	ErrBadFormat        error = errors.New("bad format")
 	ErrUnknownMethod    error = errors.New("unknown method")
 	ErrNotInScope       error = errors.New("not in scope")

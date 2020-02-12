@@ -2,14 +2,15 @@ package rqp
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
 )
 
-// QueryParser contatins of all major data
-type QueryParser struct {
+// Query contatins of all major data
+type Query struct {
 	query       map[string][]string
 	validations Validations
 
@@ -55,19 +56,19 @@ type Sort struct {
 }
 
 // Delimiter sets delimiter for values of multiple filter
-func (p *QueryParser) Delimiter(delimiter string) *QueryParser {
+func (p *Query) Delimiter(delimiter string) *Query {
 	p.delimiter = delimiter
 	return p
 }
 
 // IgnoreUnknownFilters set behavior for Parser to raise ErrFilterNotAllowed to undefined filters or not
-func (p *QueryParser) IgnoreUnknownFilters(i bool) *QueryParser {
+func (p *Query) IgnoreUnknownFilters(i bool) *Query {
 	p.ignoreUnknown = i
 	return p
 }
 
 // FieldsSQL returns elements for querying in SELECT statement or * if fields parameter not specified
-func (p *QueryParser) FieldsSQL() string {
+func (p *Query) FieldsSQL() string {
 	if len(p.Fields) == 0 {
 		return "*"
 	}
@@ -75,17 +76,17 @@ func (p *QueryParser) FieldsSQL() string {
 }
 
 // HaveField returns true if request asks for field
-func (p *QueryParser) HaveField(field string) bool {
+func (p *Query) HaveField(field string) bool {
 	return stringInSlice(field, p.Fields)
 }
 
 // AddField returns true if request asks for field
-func (p *QueryParser) AddField(field string) {
+func (p *Query) AddField(field string) {
 	p.Fields = append(p.Fields, field)
 }
 
 // OffsetSQL returns OFFSET statement
-func (p *QueryParser) OffsetSQL() string {
+func (p *Query) OffsetSQL() string {
 	if p.Offset > 0 {
 		return fmt.Sprintf(" OFFSET %d", p.Offset)
 	}
@@ -93,7 +94,7 @@ func (p *QueryParser) OffsetSQL() string {
 }
 
 // LimitSQL returns LIMIT statement
-func (p *QueryParser) LimitSQL() string {
+func (p *Query) LimitSQL() string {
 	if p.Limit > 0 {
 		return fmt.Sprintf(" LIMIT %d", p.Limit)
 	}
@@ -102,7 +103,7 @@ func (p *QueryParser) LimitSQL() string {
 
 // SortSQL returns ORDER BY statement
 // you can use +/- prefix to specify direction of sorting (+ is default)
-func (p *QueryParser) SortSQL() string {
+func (p *Query) SortSQL() string {
 	if len(p.Sorts) == 0 {
 		return ""
 	}
@@ -124,17 +125,17 @@ func (p *QueryParser) SortSQL() string {
 }
 
 // GetSorts getter for sort
-func (p *QueryParser) GetSorts() []Sort {
+func (p *Query) GetSorts() []Sort {
 	return p.Sorts
 }
 
 // SetSorts setter for sort
-func (p *QueryParser) SetSorts(sort []Sort) {
+func (p *Query) SetSorts(sort []Sort) {
 	p.Sorts = sort
 }
 
 // HaveSortBy returns true if request contains some sorting
-func (p *QueryParser) HaveSortBy(by string) bool {
+func (p *Query) HaveSortBy(by string) bool {
 
 	for _, v := range p.Sorts {
 		if v.By == by {
@@ -146,7 +147,7 @@ func (p *QueryParser) HaveSortBy(by string) bool {
 }
 
 // HaveFilter returns true if request contains some filter
-func (p *QueryParser) HaveFilter(name string) bool {
+func (p *Query) HaveFilter(name string) bool {
 
 	for _, v := range p.Filters {
 		if v.Name == name {
@@ -163,9 +164,9 @@ type FiltersNamesReplacer map[string]string
 // ReplaceFiltersNames replace all specified name to new names
 // parameter is map[string]string which means map[currentName]newName
 // usage: rqp.ReplaceFiltersNames(rqp.FiltersNamesReplacer{"oldName":"newName"})
-func (p *QueryParser) ReplaceFiltersNames(replacer FiltersNamesReplacer) {
+func (p *Query) ReplaceFiltersNames(r FiltersNamesReplacer) {
 
-	for name, newname := range replacer {
+	for name, newname := range r {
 		for i, v := range p.Filters {
 			if v.Name == name && !p.HaveFilter(newname) {
 				p.Filters[i].Name = newname
@@ -176,7 +177,7 @@ func (p *QueryParser) ReplaceFiltersNames(replacer FiltersNamesReplacer) {
 }
 
 // Where returns list of filters for WHERE statement
-func (p *QueryParser) Where() string {
+func (p *Query) Where() string {
 
 	if len(p.Filters) == 0 {
 		return ""
@@ -205,7 +206,7 @@ func (p *QueryParser) Where() string {
 }
 
 // WhereSQL returns list of filters for WHERE SQL statement
-func (p *QueryParser) WhereSQL() string {
+func (p *Query) WhereSQL() string {
 
 	if len(p.Filters) == 0 {
 		return ""
@@ -215,7 +216,7 @@ func (p *QueryParser) WhereSQL() string {
 }
 
 // Args returns slice of arguments for WHERE statement
-func (p *QueryParser) Args() []interface{} {
+func (p *Query) Args() []interface{} {
 
 	args := make([]interface{}, 0)
 
@@ -244,7 +245,7 @@ func (p *QueryParser) Args() []interface{} {
 	return args
 }
 
-func (p *QueryParser) SQL(table string) string {
+func (p *Query) SQL(table string) string {
 	return fmt.Sprintf(
 		"SELECT %s FROM %s%s%s%s%s",
 		p.FieldsSQL(),
@@ -256,33 +257,35 @@ func (p *QueryParser) SQL(table string) string {
 	)
 }
 
-// SetQuery change url query for the instance
-func (p *QueryParser) SetQuery(query map[string][]string) *QueryParser {
-	p.query = query
+// SetUrlQuery change url query for the instance
+func (p *Query) SetUrlQuery(q url.Values) *Query {
+	p.query = q
 	return p
 }
 
 // SetValidations change validations rules for the instance
-func (p *QueryParser) SetValidations(validations Validations) *QueryParser {
-	p.validations = validations
+func (p *Query) SetValidations(v Validations) *Query {
+	p.validations = v
 	return p
 }
 
-func New(query map[string][]string, validations Validations) *QueryParser {
-	QP := &QueryParser{
+// New creates new instance of Query
+func New(q url.Values, v Validations) *Query {
+	QP := &Query{
 		delimiter: ",",
 	}
-	return QP.SetQuery(query).SetValidations(validations)
+	return QP.SetUrlQuery(q).SetValidations(v)
 }
 
-func NewParse(query map[string][]string, validations Validations) (*QueryParser, error) {
-	q := New(query, validations)
-	return q, q.Parse()
+// NewParse creates new Query instance and Parse it
+func NewParse(q url.Values, v Validations) (*Query, error) {
+	query := New(q, v)
+	return query, query.Parse()
 }
 
 // Parse parses the query of URL
 // as query you can use standart http.Request query by r.URL.Query()
-func (p *QueryParser) Parse() error {
+func (p *Query) Parse() error {
 
 	// check if required
 	for name, f := range p.validations {
@@ -301,7 +304,7 @@ func (p *QueryParser) Parse() error {
 			for key, _ := range p.query {
 				filter, err := parseFilterKey(key)
 				if err != nil {
-					return err
+					return errors.Wrap(err, name)
 				}
 				if filter.Name == name {
 					found = true
@@ -310,7 +313,7 @@ func (p *QueryParser) Parse() error {
 			}
 
 			if !found {
-				return errors.New(fmt.Sprintf("%s: required", name))
+				return errors.Wrap(ErrRequired, name)
 			} else {
 				p.validations[newname] = f
 				delete(p.validations, oldname)
@@ -322,24 +325,24 @@ func (p *QueryParser) Parse() error {
 
 		if strings.ToUpper(key) == "FIELDS" {
 			if err := p.parseFields(value, p.validations[key]); err != nil {
-				return err
+				return errors.Wrap(err, key)
 			}
 		} else if strings.ToUpper(key) == "OFFSET" {
 			if err := p.parseOffset(value, p.validations[key]); err != nil {
-				return err
+				return errors.Wrap(err, key)
 			}
 		} else if strings.ToUpper(key) == "LIMIT" {
 			if err := p.parseLimit(value, p.validations[key]); err != nil {
-				return err
+				return errors.Wrap(err, key)
 			}
 		} else if strings.ToUpper(key) == "SORT" {
 			if err := p.parseSort(value, p.validations[key]); err != nil {
-				return err
+				return errors.Wrap(err, key)
 			}
 		} else {
 			filter, err := parseFilterKey(key)
 			if err != nil {
-				return err
+				return errors.Wrap(err, key)
 			}
 
 			allowed := false
@@ -365,7 +368,7 @@ func (p *QueryParser) Parse() error {
 				if p.ignoreUnknown {
 					continue
 				} else {
-					return ErrFilterNotAllowed
+					return errors.Wrap(ErrFilterNotAllowed, key)
 				}
 			}
 
@@ -378,7 +381,7 @@ func (p *QueryParser) Parse() error {
 	return nil
 }
 
-func (p *QueryParser) parseSort(value []string, validate ValidationFunc) error {
+func (p *Query) parseSort(value []string, validate ValidationFunc) error {
 	if len(value) != 1 {
 		return ErrBadFormat
 	}
@@ -428,7 +431,7 @@ func (p *QueryParser) parseSort(value []string, validate ValidationFunc) error {
 	return nil
 }
 
-func (p *QueryParser) parseFields(value []string, validate ValidationFunc) error {
+func (p *Query) parseFields(value []string, validate ValidationFunc) error {
 	if len(value) == 1 {
 		list := value
 		if strings.Contains(value[0], p.delimiter) {
@@ -451,7 +454,7 @@ func (p *QueryParser) parseFields(value []string, validate ValidationFunc) error
 	return ErrBadFormat
 }
 
-func (p *QueryParser) parseOffset(value []string, validate ValidationFunc) error {
+func (p *Query) parseOffset(value []string, validate ValidationFunc) error {
 
 	if len(value) != 1 {
 		return ErrBadFormat
@@ -477,7 +480,7 @@ func (p *QueryParser) parseOffset(value []string, validate ValidationFunc) error
 	return nil
 }
 
-func (p *QueryParser) parseLimit(value []string, validate ValidationFunc) error {
+func (p *Query) parseLimit(value []string, validate ValidationFunc) error {
 
 	if len(value) != 1 {
 		return ErrBadFormat

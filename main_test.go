@@ -151,6 +151,19 @@ func TestWhere(t *testing.T) {
 
 }
 
+func TestArgs(t *testing.T) {
+	// setup url
+	URL, err := url.Parse("?fields=id,status&sort=id,+id,-id&offset=10&one=123&two=test")
+	assert.NoError(t, err)
+
+	q, err := NewParse(URL.Query(), Validations{"one:int": nil, "two": nil})
+	assert.NoError(t, err)
+
+	assert.Len(t, q.Args(), 2)
+	assert.Contains(t, q.Args(), 123)
+	assert.Contains(t, q.Args(), "test")
+}
+
 func TestSQL(t *testing.T) {
 	URL, err := url.Parse("?fields=id,status&sort=id&offset=10&some=123")
 	assert.NoError(t, err)
