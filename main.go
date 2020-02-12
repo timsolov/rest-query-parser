@@ -420,7 +420,7 @@ func (p *Query) parseSort(value []string, validate ValidationFunc) error {
 		}
 
 		if validate != nil {
-			if err := validate(p, by); err != nil {
+			if err := validate(by); err != nil {
 				return err
 			}
 		}
@@ -447,7 +447,7 @@ func (p *Query) parseFields(value []string, validate ValidationFunc) error {
 
 		if validate != nil {
 			for _, v := range list {
-				if err := validate(p, v); err != nil {
+				if err := validate(v); err != nil {
 					return err
 				}
 			}
@@ -477,7 +477,7 @@ func (p *Query) parseOffset(value []string, validate ValidationFunc) error {
 	}
 
 	if validate != nil {
-		if err := validate(p, p.Offset); err != nil {
+		if err := validate(p.Offset); err != nil {
 			return err
 		}
 	}
@@ -503,7 +503,7 @@ func (p *Query) parseLimit(value []string, validate ValidationFunc) error {
 	}
 
 	if validate != nil {
-		if err := validate(p, p.Limit); err != nil {
+		if err := validate(p.Limit); err != nil {
 			return err
 		}
 	}

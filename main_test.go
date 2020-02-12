@@ -154,7 +154,7 @@ func TestWhere(t *testing.T) {
 		assert.NoError(t, err)
 
 		q := New(URL.Query(), Validations{
-			"id:int": func(q *Query, value interface{}) error {
+			"id:int": func(value interface{}) error {
 				if value.(int) > 10 {
 					return errors.New("can't be greater then 10")
 				}
@@ -165,7 +165,7 @@ func TestWhere(t *testing.T) {
 				"best",
 			),
 			"u:string": nil,
-			"custom": func(q *Query, value interface{}) error {
+			"custom": func(value interface{}) error {
 				return nil
 			},
 		})

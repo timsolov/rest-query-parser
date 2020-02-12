@@ -4,12 +4,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-type ValidationFunc func(q *Query, value interface{}) error
+type ValidationFunc func(value interface{}) error
 
 type Validations map[string]ValidationFunc
 
 func In(values ...interface{}) ValidationFunc {
-	return func(q *Query, value interface{}) error {
+	return func(value interface{}) error {
 
 		var (
 			v  interface{}

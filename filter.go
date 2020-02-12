@@ -112,12 +112,12 @@ func (p *Query) parseFilterValue(f Filter, fType string, value []string, validat
 		if validate != nil {
 			switch f.Value.(type) {
 			case int:
-				if err := validate(p, f.Value); err != nil {
+				if err := validate(f.Value); err != nil {
 					return err
 				}
 			case []int:
 				for _, v := range f.Value.([]int) {
-					if err := validate(p, v); err != nil {
+					if err := validate(v); err != nil {
 						return err
 					}
 				}
@@ -131,7 +131,7 @@ func (p *Query) parseFilterValue(f Filter, fType string, value []string, validat
 		}
 		if validate != nil {
 			for _, v := range list {
-				if err := validate(p, v); err != nil {
+				if err := validate(v); err != nil {
 					return err
 				}
 			}
