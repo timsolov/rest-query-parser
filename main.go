@@ -124,16 +124,6 @@ func (p *Query) SortSQL() string {
 	return s
 }
 
-// GetSorts getter for sort
-func (p *Query) GetSorts() []Sort {
-	return p.Sorts
-}
-
-// SetSorts setter for sort
-func (p *Query) SetSorts(sort []Sort) {
-	p.Sorts = sort
-}
-
 // HaveSortBy returns true if request contains some sorting
 func (p *Query) HaveSortBy(by string) bool {
 
@@ -232,7 +222,12 @@ func (p *Query) Args() []interface{} {
 			args = append(args, filter.Value)
 		case MethodLIKE:
 			value := filter.Value.(string)
-			value = strings.Replace(value, "*", "%", -1)
+			if len(value) >= 2 && strings.HasPrefix(value, "*") {
+				value = "%" + value[1:]
+			}
+			if len(value) >= 2 && strings.HasSuffix(value, "*") {
+				value = value[:len(value)-1] + "%"
+			}
 			args = append(args, value)
 		case MethodIN:
 			_, params, _ := in("?", filter.Value)
@@ -261,6 +256,16 @@ func (p *Query) SQL(table string) string {
 func (p *Query) SetUrlQuery(q url.Values) *Query {
 	p.query = q
 	return p
+}
+
+// SetUrlRaw change url query for the instance
+func (p *Query) SetUrlRaw(Url string) error {
+	u, err := url.Parse(Url)
+	if err != nil {
+		return err
+	}
+	p.SetUrlQuery(u.Query())
+	return err
 }
 
 // SetValidations change validations rules for the instance
@@ -415,7 +420,7 @@ func (p *Query) parseSort(value []string, validate ValidationFunc) error {
 		}
 
 		if validate != nil {
-			if err := validate(by); err != nil {
+			if err := validate(p, by); err != nil {
 				return err
 			}
 		}
@@ -442,7 +447,7 @@ func (p *Query) parseFields(value []string, validate ValidationFunc) error {
 
 		if validate != nil {
 			for _, v := range list {
-				if err := validate(v); err != nil {
+				if err := validate(p, v); err != nil {
 					return err
 				}
 			}
@@ -472,7 +477,7 @@ func (p *Query) parseOffset(value []string, validate ValidationFunc) error {
 	}
 
 	if validate != nil {
-		if err := validate(p.Offset); err != nil {
+		if err := validate(p, p.Offset); err != nil {
 			return err
 		}
 	}
@@ -498,7 +503,7 @@ func (p *Query) parseLimit(value []string, validate ValidationFunc) error {
 	}
 
 	if validate != nil {
-		if err := validate(p.Limit); err != nil {
+		if err := validate(p, p.Limit); err != nil {
 			return err
 		}
 	}

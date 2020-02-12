@@ -1,7 +1,6 @@
 package rqp
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 )
@@ -13,10 +12,6 @@ type Filter struct {
 	Expression string
 }
 
-func (f Filter) String() string {
-	return fmt.Sprintf("Name: %v Value: %v Method: %v Exp: %v", f.Name, f.Value, f.Method, f.Expression)
-}
-
 func (f *Filter) setInt(list []string) error {
 	if len(list) == 1 {
 		if f.Method != MethodEQ &&
@@ -24,7 +19,8 @@ func (f *Filter) setInt(list []string) error {
 			f.Method != MethodGT &&
 			f.Method != MethodLT &&
 			f.Method != MethodGTE &&
-			f.Method != MethodLTE {
+			f.Method != MethodLTE &&
+			f.Method != MethodIN {
 			return ErrMethodNotAllowed
 		}
 
@@ -97,7 +93,7 @@ func parseFilterKey(key string) (Filter, error) {
 	return f, nil
 }
 
-func (p *Query) parseFilterValue(filter Filter, _type string, value []string, validate ValidationFunc) error {
+func (p *Query) parseFilterValue(f Filter, fType string, value []string, validate ValidationFunc) error {
 	if len(value) != 1 {
 		return ErrSimilarNames
 	}
@@ -107,31 +103,40 @@ func (p *Query) parseFilterValue(filter Filter, _type string, value []string, va
 		list = strings.Split(value[0], p.delimiter)
 	}
 
-	switch _type {
+	switch fType {
 	case "int":
-		err := filter.setInt(list)
+		err := f.setInt(list)
 		if err != nil {
 			return err
 		}
 		if validate != nil {
-			if err := validate(filter.Value); err != nil {
-				return err
+			switch f.Value.(type) {
+			case int:
+				if err := validate(p, f.Value); err != nil {
+					return err
+				}
+			case []int:
+				for _, v := range f.Value.([]int) {
+					if err := validate(p, v); err != nil {
+						return err
+					}
+				}
 			}
 		}
-		p.Filters = append(p.Filters, filter)
+		p.Filters = append(p.Filters, f)
 	default: // str, string and all other unknown types will handle like string
-		err := filter.setString(list)
+		err := f.setString(list)
 		if err != nil {
 			return err
 		}
 		if validate != nil {
 			for _, v := range list {
-				if err := validate(v); err != nil {
+				if err := validate(p, v); err != nil {
 					return err
 				}
 			}
 		}
-		p.Filters = append(p.Filters, filter)
+		p.Filters = append(p.Filters, f)
 	}
 
 	return nil

@@ -1,6 +1,7 @@
 package rqp
 
 import (
+	"errors"
 	"net/url"
 	"testing"
 
@@ -72,6 +73,13 @@ func TestLimit(t *testing.T) {
 	}
 }
 
+func ParseURL(t *testing.T, u string) url.Values {
+	t.Helper()
+	URL, err := url.Parse(u)
+	assert.NoError(t, err)
+	return URL.Query()
+}
+
 func TestSort(t *testing.T) {
 
 	cases := []struct {
@@ -93,6 +101,15 @@ func TestSort(t *testing.T) {
 		assert.Equal(t, c.err, err)
 		assert.Equal(t, c.expected, q.SortSQL())
 	}
+
+	q := New(nil, nil).SetValidations(Validations{"sort": In("id")})
+	err := q.SetUrlRaw("://")
+	assert.Error(t, err)
+	err = q.SetUrlRaw("?sort=id")
+	assert.NoError(t, err)
+	err = q.Parse()
+	assert.NoError(t, err)
+	assert.True(t, q.HaveSortBy("id"))
 }
 
 func TestWhere(t *testing.T) {
@@ -107,12 +124,26 @@ func TestWhere(t *testing.T) {
 		{url: "?", expected: ""},
 		{url: "?id", expected: "", err: "id: bad format"},
 		{url: "?id=", expected: "", err: "id: bad format"},
+		{url: "?id=1.2", expected: "", err: "id: bad format"},
+		{url: "?id[in]=1.2", expected: "", err: "id[in]: bad format"},
+		{url: "?id[in]=1.2,1.2", expected: "", err: "id[in]: bad format"},
+		{url: "?id[test]=1", expected: "", err: "id[test]: unknown method"},
+		{url: "?id[like]=1", expected: "", err: "id[like]: method are not allowed"},
 		{url: "?id=1,2", expected: "", err: "id: method are not allowed"},
 		{url: "?id=4", expected: " WHERE id = ?"},
+
+		{url: "?id=100", err: "id: can't be greater then 10"},
+		{url: "?id[in]=100,200", err: "id[in]: can't be greater then 10"},
+
 		{url: "?id=1&name=superman", expected: " WHERE id = ?", ignore: true},
 		{url: "?id=1&name=superman&s[like]=super", expected: " WHERE id = ? AND s LIKE ?", expected2: " WHERE s LIKE ? AND id = ?", ignore: true},
 		{url: "?s=super", expected: " WHERE s = ?"},
+		{url: "?s[in]=super,puper", err: "s[in]: puper: not in scope"},
+		{url: "?s[in]=super,best", expected: " WHERE s IN (?, ?)"},
 		{url: "?s=puper", expected: "", err: "s: puper: not in scope"},
+		{url: "?u=puper", expected: " WHERE u = ?"},
+		{url: "?u[eq]=1,2", expected: "", err: "u[eq]: method are not allowed"},
+		{url: "?u[gt]=1", expected: "", err: "u[gt]: method are not allowed"},
 		{url: "?id[in]=1,2", expected: " WHERE id IN (?, ?)"},
 		{url: "?id[eq]=1&id[eq]=4", err: "id[eq]: similar names of keys are not allowed"},
 		{url: "?id[gte]=1&id[lte]=4", expected: " WHERE id >= ? AND id <= ?", expected2: " WHERE id <= ? AND id >= ?"},
@@ -123,12 +154,18 @@ func TestWhere(t *testing.T) {
 		assert.NoError(t, err)
 
 		q := New(URL.Query(), Validations{
-			"id:int": nil,
+			"id:int": func(q *Query, value interface{}) error {
+				if value.(int) > 10 {
+					return errors.New("can't be greater then 10")
+				}
+				return nil
+			},
 			"s": In(
 				"super",
 				"best",
 			),
-			"custom": func(value interface{}) error {
+			"u:string": nil,
+			"custom": func(q *Query, value interface{}) error {
 				return nil
 			},
 		})
@@ -140,10 +177,10 @@ func TestWhere(t *testing.T) {
 		}
 		where := q.WhereSQL()
 		if len(c.expected2) > 0 {
-			//t.Log(where)
+			//t.Log("expected:", c.expected, "or:", c.expected2, "got:", where)
 			assert.True(t, c.expected == where || c.expected2 == where)
 		} else {
-			//t.Log(where)
+			//t.Log("expected:", c.expected, "got:", where)
 			assert.True(t, c.expected == where)
 		}
 
@@ -152,16 +189,22 @@ func TestWhere(t *testing.T) {
 }
 
 func TestArgs(t *testing.T) {
+	q := New(nil, nil)
+	q.Delimiter("|")
+	assert.Len(t, q.Args(), 0)
 	// setup url
-	URL, err := url.Parse("?fields=id,status&sort=id,+id,-id&offset=10&one=123&two=test")
+	URL, err := url.Parse("?fields=id,status&sort=id,+id,-id&offset=10&one=123&two=test&three[like]=*www*&three[in]=www1|www2")
 	assert.NoError(t, err)
 
-	q, err := NewParse(URL.Query(), Validations{"one:int": nil, "two": nil})
+	err = q.SetUrlQuery(URL.Query()).SetValidations(Validations{"one:int": nil, "two": nil, "three": nil}).Parse()
 	assert.NoError(t, err)
 
-	assert.Len(t, q.Args(), 2)
+	assert.Len(t, q.Args(), 5)
 	assert.Contains(t, q.Args(), 123)
 	assert.Contains(t, q.Args(), "test")
+	assert.Contains(t, q.Args(), "%www%")
+	assert.Contains(t, q.Args(), "www1")
+	assert.Contains(t, q.Args(), "www2")
 }
 
 func TestSQL(t *testing.T) {
@@ -233,4 +276,12 @@ func TestRequiredFilter(t *testing.T) {
 	assert.False(t, present)
 	_, present = qp.validations["limit"]
 	assert.True(t, present)
+}
+
+func TestAddField(t *testing.T) {
+	q := New(nil, nil)
+	q.AddField("test")
+	assert.Len(t, q.Fields, 1)
+	assert.True(t, q.HaveField("test"))
+	assert.Equal(t, q.Where(), "")
 }
