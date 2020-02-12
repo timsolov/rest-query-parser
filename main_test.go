@@ -112,7 +112,7 @@ func TestWhere(t *testing.T) {
 		{url: "?id=1&name=superman", expected: " WHERE id = ?", ignore: true},
 		{url: "?id=1&name=superman&s[like]=super", expected: " WHERE id = ? AND s LIKE ?", expected2: " WHERE s LIKE ? AND id = ?", ignore: true},
 		{url: "?s=super", expected: " WHERE s = ?"},
-		{url: "?s=puper", expected: "", err: "s: not in scope"},
+		{url: "?s=puper", expected: "", err: "s: puper: not in scope"},
 		{url: "?id[in]=1,2", expected: " WHERE id IN (?, ?)"},
 		{url: "?id[eq]=1&id[eq]=4", err: "id[eq]: similar names of keys are not allowed"},
 		{url: "?id[gte]=1&id[lte]=4", expected: " WHERE id >= ? AND id <= ?", expected2: " WHERE id <= ? AND id >= ?"},

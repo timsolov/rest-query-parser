@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"errors"
+	"github.com/pkg/errors"
 )
 
 // QueryParser contatins of all major data
@@ -370,7 +370,7 @@ func (p *QueryParser) Parse() error {
 			}
 
 			if err = p.parseFilterValue(filter, _type, value, validationFunc); err != nil {
-				return errors.New(fmt.Sprintf("%s: %v", key, err))
+				return errors.Wrap(err, key)
 			}
 		}
 	}

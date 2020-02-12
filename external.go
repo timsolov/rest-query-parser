@@ -5,11 +5,10 @@ import (
 	"errors"
 	"reflect"
 	"strings"
-
-	"github.com/jmoiron/sqlx/reflectx"
 )
 
 // took from sqlx library:
+// this func used only for IN statements
 // https://github.com/jmoiron/sqlx
 
 // in expands slice values in args, returning the modified query string
@@ -34,7 +33,7 @@ func in(query string, args ...interface{}) (string, []interface{}, error) {
 			arg, _ = a.Value()
 		}
 		v := reflect.ValueOf(arg)
-		t := reflectx.Deref(v.Type())
+		t := deref(v.Type())
 
 		// []byte is a driver.Value type so it should not be expanded
 		if t.Kind() == reflect.Slice && t != reflect.TypeOf([]byte{}) {
@@ -128,4 +127,12 @@ func appendReflectSlice(args []interface{}, v reflect.Value, vlen int) []interfa
 	}
 
 	return args
+}
+
+// deref is Indirect for reflect.Types
+func deref(t reflect.Type) reflect.Type {
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	return t
 }
