@@ -64,9 +64,9 @@ func (f *Filter) setString(list []string) error {
 	return nil
 }
 
-func parseFilterKey(key string) (Filter, error) {
+func parseFilterKey(key string) (*Filter, error) {
 
-	f := Filter{
+	f := &Filter{
 		Method: MethodEQ,
 	}
 
@@ -93,7 +93,7 @@ func parseFilterKey(key string) (Filter, error) {
 	return f, nil
 }
 
-func (p *Query) parseFilterValue(f Filter, fType string, value []string, validate ValidationFunc) error {
+func (p *Query) parseFilterValue(f *Filter, fType string, value []string, validate ValidationFunc) error {
 	if len(value) != 1 {
 		return ErrSimilarNames
 	}

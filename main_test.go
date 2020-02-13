@@ -1,9 +1,10 @@
 package rqp
 
 import (
-	"errors"
 	"net/url"
 	"testing"
+
+	"github.com/pkg/errors"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -256,6 +257,13 @@ func TestReplaceFiltersNames(t *testing.T) {
 	assert.False(t, q.HaveFilter("another"))
 	assert.False(t, q.HaveFilter("nonpresent"))
 	assert.False(t, q.HaveFilter("hello"))
+
+	assert.NoError(t, q.RemoveFilter("r.another"))
+	assert.Equal(t, q.RemoveFilter("r.another"), errors.Cause(ErrFilterNotFound))
+	_, err = q.GetFilter("r.another")
+	assert.Equal(t, err, errors.Cause(ErrFilterNotFound))
+	f, _ := q.GetFilter("r.another")
+	assert.IsType(t, &Filter{}, f)
 }
 
 func TestRequiredFilter(t *testing.T) {

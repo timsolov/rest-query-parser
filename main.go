@@ -18,7 +18,7 @@ type Query struct {
 	Offset  int
 	Limit   int
 	Sorts   []Sort
-	Filters []Filter
+	Filters []*Filter
 
 	delimiter     string
 	ignoreUnknown bool
@@ -146,6 +146,37 @@ func (p *Query) HaveFilter(name string) bool {
 	}
 
 	return false
+}
+
+// RemoveFilter removes the filter by name
+func (p *Query) RemoveFilter(name string) error {
+
+	for i, v := range p.Filters {
+		if v.Name == name {
+			// safe remove element from slice
+			if i < len(p.Filters)-1 {
+				copy(p.Filters[i:], p.Filters[i+1:])
+			}
+			p.Filters[len(p.Filters)-1] = nil
+			p.Filters = p.Filters[:len(p.Filters)-1]
+
+			return nil
+		}
+	}
+
+	return ErrFilterNotFound
+}
+
+// GetFilter returns filter by name
+func (p *Query) GetFilter(name string) (*Filter, error) {
+
+	for _, v := range p.Filters {
+		if v.Name == name {
+			return v, nil
+		}
+	}
+
+	return nil, ErrFilterNotFound
 }
 
 // FiltersNamesReplacer struct for ReplaceFiltersNames method

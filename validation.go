@@ -30,3 +30,25 @@ func In(values ...interface{}) ValidationFunc {
 		return nil
 	}
 }
+
+func Max(max int) ValidationFunc {
+	return func(value interface{}) error {
+		if limit, ok := value.(int); ok {
+			if limit <= max {
+				return nil
+			}
+		}
+		return errors.Wrapf(ErrNotInScope, "%v", value)
+	}
+}
+
+func MinMax(min, max int) ValidationFunc {
+	return func(value interface{}) error {
+		if limit, ok := value.(int); ok {
+			if min <= limit && limit <= max {
+				return nil
+			}
+		}
+		return errors.Wrapf(ErrNotInScope, "%v", value)
+	}
+}

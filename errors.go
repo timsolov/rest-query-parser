@@ -10,4 +10,5 @@ var (
 	ErrSimilarNames     error = errors.New("similar names of keys are not allowed")
 	ErrMethodNotAllowed error = errors.New("method are not allowed")
 	ErrFilterNotAllowed error = errors.New("filter are not allowed")
+	ErrFilterNotFound   error = errors.New("filter not found")
 )
