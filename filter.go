@@ -1,6 +1,7 @@
 package rqp
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -10,6 +11,51 @@ type Filter struct {
 	Value      interface{}
 	Method     string
 	Expression string
+}
+
+// SQL returns condition expression
+func (f *Filter) SQL() (string, error) {
+	var exp string
+
+	switch f.Method {
+	case MethodEQ, MethodNE, MethodGT, MethodLT, MethodGTE, MethodLTE, MethodLIKE:
+		exp = fmt.Sprintf("%s %s ?", f.Name, TranslateMethods[f.Method])
+		return exp, nil
+	case MethodIN:
+		exp = fmt.Sprintf("%s %s (?)", f.Name, TranslateMethods[f.Method])
+		exp, _, _ = in(exp, f.Value)
+		return exp, nil
+	default:
+		return exp, ErrUnknownMethod
+	}
+}
+
+// Args returns arguments slice depending on filter condition
+func (f *Filter) Args() ([]interface{}, error) {
+
+	args := make([]interface{}, 0)
+
+	switch f.Method {
+	case MethodEQ, MethodNE, MethodGT, MethodLT, MethodGTE, MethodLTE:
+		args = append(args, f.Value)
+		return args, nil
+	case MethodLIKE:
+		value := f.Value.(string)
+		if len(value) >= 2 && strings.HasPrefix(value, "*") {
+			value = "%" + value[1:]
+		}
+		if len(value) >= 2 && strings.HasSuffix(value, "*") {
+			value = value[:len(value)-1] + "%"
+		}
+		args = append(args, value)
+		return args, nil
+	case MethodIN:
+		_, params, _ := in("?", f.Value)
+		args = append(args, params...)
+		return args, nil
+	default:
+		return nil, ErrUnknownMethod
+	}
 }
 
 func (f *Filter) setInt(list []string) error {

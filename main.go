@@ -209,18 +209,11 @@ func (p *Query) Where() string {
 	for i := 0; i < len(p.Filters); i++ {
 		filter := p.Filters[i]
 
-		var exp string
-		switch filter.Method {
-		case MethodEQ, MethodNE, MethodGT, MethodLT, MethodGTE, MethodLTE, MethodLIKE:
-			exp = fmt.Sprintf("%s %s ?", filter.Name, TranslateMethods[filter.Method])
-		case MethodIN:
-			exp = fmt.Sprintf("%s %s (?)", filter.Name, TranslateMethods[filter.Method])
-			exp, _, _ = in(exp, filter.Value)
-		default:
+		if a, err := filter.SQL(); err == nil {
+			where = append(where, a)
+		} else {
 			continue
 		}
-
-		where = append(where, exp)
 	}
 
 	return strings.Join(where, " AND ")
@@ -248,22 +241,9 @@ func (p *Query) Args() []interface{} {
 	for i := 0; i < len(p.Filters); i++ {
 		filter := p.Filters[i]
 
-		switch filter.Method {
-		case MethodEQ, MethodNE, MethodGT, MethodLT, MethodGTE, MethodLTE:
-			args = append(args, filter.Value)
-		case MethodLIKE:
-			value := filter.Value.(string)
-			if len(value) >= 2 && strings.HasPrefix(value, "*") {
-				value = "%" + value[1:]
-			}
-			if len(value) >= 2 && strings.HasSuffix(value, "*") {
-				value = value[:len(value)-1] + "%"
-			}
-			args = append(args, value)
-		case MethodIN:
-			_, params, _ := in("?", filter.Value)
-			args = append(args, params...)
-		default:
+		if a, err := filter.Args(); err == nil {
+			args = append(args, a...)
+		} else {
 			continue
 		}
 	}
