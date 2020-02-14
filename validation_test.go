@@ -29,6 +29,9 @@ func TestMinMax(t *testing.T) {
 	err = Max(100)(100)
 	assert.NoError(t, err)
 
+	err = Min(100)(100)
+	assert.NoError(t, err)
+
 	err = MinMax(10, 100)(9)
 	assert.Equal(t, errors.Cause(err), ErrNotInScope)
 	assert.EqualError(t, err, "9: not in scope")
@@ -39,6 +42,12 @@ func TestMinMax(t *testing.T) {
 
 	err = MinMax(10, 100)(50)
 	assert.NoError(t, err)
+
+	err = Multi(Min(10), Max(100))(50)
+	assert.NoError(t, err)
+
+	err = Multi(Min(10), Max(100))(101)
+	assert.Equal(t, errors.Cause(err), ErrNotInScope)
 
 	err = MinMax(10, 100)("one")
 	assert.Equal(t, errors.Cause(err), ErrNotInScope)
