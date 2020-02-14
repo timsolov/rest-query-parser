@@ -9,19 +9,19 @@ import (
 type Filter struct {
 	Name       string
 	Value      interface{}
-	Method     string
+	Method     Method
 	Expression string
 }
 
-// SQL returns condition expression
-func (f *Filter) SQL() (string, error) {
+// Where returns condition expression
+func (f *Filter) Where() (string, error) {
 	var exp string
 
 	switch f.Method {
-	case MethodEQ, MethodNE, MethodGT, MethodLT, MethodGTE, MethodLTE, MethodLIKE:
+	case EQ, NE, GT, LT, GTE, LTE, LIKE:
 		exp = fmt.Sprintf("%s %s ?", f.Name, TranslateMethods[f.Method])
 		return exp, nil
-	case MethodIN:
+	case IN:
 		exp = fmt.Sprintf("%s %s (?)", f.Name, TranslateMethods[f.Method])
 		exp, _, _ = in(exp, f.Value)
 		return exp, nil
@@ -36,10 +36,10 @@ func (f *Filter) Args() ([]interface{}, error) {
 	args := make([]interface{}, 0)
 
 	switch f.Method {
-	case MethodEQ, MethodNE, MethodGT, MethodLT, MethodGTE, MethodLTE:
+	case EQ, NE, GT, LT, GTE, LTE:
 		args = append(args, f.Value)
 		return args, nil
-	case MethodLIKE:
+	case LIKE:
 		value := f.Value.(string)
 		if len(value) >= 2 && strings.HasPrefix(value, "*") {
 			value = "%" + value[1:]
@@ -49,7 +49,7 @@ func (f *Filter) Args() ([]interface{}, error) {
 		}
 		args = append(args, value)
 		return args, nil
-	case MethodIN:
+	case IN:
 		_, params, _ := in("?", f.Value)
 		args = append(args, params...)
 		return args, nil
@@ -60,13 +60,13 @@ func (f *Filter) Args() ([]interface{}, error) {
 
 func (f *Filter) setInt(list []string) error {
 	if len(list) == 1 {
-		if f.Method != MethodEQ &&
-			f.Method != MethodNE &&
-			f.Method != MethodGT &&
-			f.Method != MethodLT &&
-			f.Method != MethodGTE &&
-			f.Method != MethodLTE &&
-			f.Method != MethodIN {
+		if f.Method != EQ &&
+			f.Method != NE &&
+			f.Method != GT &&
+			f.Method != LT &&
+			f.Method != GTE &&
+			f.Method != LTE &&
+			f.Method != IN {
 			return ErrMethodNotAllowed
 		}
 
@@ -76,7 +76,7 @@ func (f *Filter) setInt(list []string) error {
 		}
 		f.Value = i
 	} else {
-		if f.Method != MethodIN {
+		if f.Method != IN {
 			return ErrMethodNotAllowed
 		}
 		intSlice := make([]int, len(list))
@@ -94,15 +94,15 @@ func (f *Filter) setInt(list []string) error {
 
 func (f *Filter) setString(list []string) error {
 	if len(list) == 1 {
-		if f.Method != MethodEQ &&
-			f.Method != MethodNE &&
-			f.Method != MethodLIKE &&
-			f.Method != MethodIN {
+		if f.Method != EQ &&
+			f.Method != NE &&
+			f.Method != LIKE &&
+			f.Method != IN {
 			return ErrMethodNotAllowed
 		}
 		f.Value = list[0]
 	} else {
-		if f.Method != MethodIN {
+		if f.Method != IN {
 			return ErrMethodNotAllowed
 		}
 		f.Value = list
@@ -113,7 +113,7 @@ func (f *Filter) setString(list []string) error {
 func parseFilterKey(key string) (*Filter, error) {
 
 	f := &Filter{
-		Method: MethodEQ,
+		Method: EQ,
 	}
 
 	spos := strings.Index(key, "[")
@@ -126,7 +126,7 @@ func parseFilterKey(key string) (*Filter, error) {
 			epos = spos + epos - 1
 
 			if epos-spos > 0 {
-				f.Method = strings.ToUpper(key[spos:epos])
+				f.Method = Method(strings.ToUpper(string(key[spos:epos])))
 				if _, ok := TranslateMethods[f.Method]; !ok {
 					return f, ErrUnknownMethod
 				}

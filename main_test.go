@@ -103,7 +103,7 @@ func TestSort(t *testing.T) {
 		assert.Equal(t, c.expected, q.SortSQL())
 	}
 
-	q := New(nil, nil).SetValidations(Validations{"sort": In("id")})
+	q := New().SetValidations(Validations{"sort": In("id")})
 	err := q.SetUrlRaw("://")
 	assert.Error(t, err)
 	err = q.SetUrlRaw("?sort=id")
@@ -154,23 +154,23 @@ func TestWhere(t *testing.T) {
 		URL, err := url.Parse(c.url)
 		assert.NoError(t, err)
 
-		q := New(URL.Query(), Validations{
-			"id:int": func(value interface{}) error {
-				if value.(int) > 10 {
-					return errors.New("can't be greater then 10")
-				}
-				return nil
-			},
-			"s": In(
-				"super",
-				"best",
-			),
-			"u:string": nil,
-			"custom": func(value interface{}) error {
-				return nil
-			},
-		})
-		q.IgnoreUnknownFilters(c.ignore)
+		q := New().SetUrlQuery(URL.Query()).IgnoreUnknownFilters(c.ignore).
+			SetValidations(Validations{
+				"id:int": func(value interface{}) error {
+					if value.(int) > 10 {
+						return errors.New("can't be greater then 10")
+					}
+					return nil
+				},
+				"s": In(
+					"super",
+					"best",
+				),
+				"u:string": nil,
+				"custom": func(value interface{}) error {
+					return nil
+				},
+			})
 		err = q.Parse()
 
 		if len(c.err) > 0 {
@@ -190,8 +190,7 @@ func TestWhere(t *testing.T) {
 }
 
 func TestArgs(t *testing.T) {
-	q := New(nil, nil)
-	q.Delimiter("|")
+	q := New().Delimiter("|")
 	assert.Len(t, q.Args(), 0)
 	// setup url
 	URL, err := url.Parse("?fields=id,status&sort=id,+id,-id&offset=10&one=123&two=test&three[like]=*www*&three[in]=www1|www2")
@@ -212,7 +211,7 @@ func TestSQL(t *testing.T) {
 	URL, err := url.Parse("?fields=id,status&sort=id&offset=10&some=123")
 	assert.NoError(t, err)
 
-	q := New(URL.Query(), nil)
+	q := New().SetUrlQuery(URL.Query())
 	q.IgnoreUnknownFilters(true)
 	err = q.Parse()
 	assert.NoError(t, err)
@@ -287,9 +286,17 @@ func TestRequiredFilter(t *testing.T) {
 }
 
 func TestAddField(t *testing.T) {
-	q := New(nil, nil)
+	q := New()
+	q.SetUrlRaw("?test=ok")
 	q.AddField("test")
 	assert.Len(t, q.Fields, 1)
 	assert.True(t, q.HaveField("test"))
-	assert.Equal(t, q.Where(), "")
+	assert.Equal(t, "test", q.FieldsSQL())
+}
+
+func TestAddFilter(t *testing.T) {
+	q := New().AddFilter("test", EQ, "ok")
+	assert.Len(t, q.Filters, 1)
+	assert.True(t, q.HaveFilter("test"))
+	assert.Equal(t, "test = ?", q.Where())
 }

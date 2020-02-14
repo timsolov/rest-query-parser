@@ -26,27 +26,29 @@ type Query struct {
 	ErrorMessage string
 }
 
-var (
-	MethodEQ   string = "EQ"
-	MethodNE   string = "NE"
-	MethodGT   string = "GT"
-	MethodLT   string = "LT"
-	MethodGTE  string = "GTE"
-	MethodLTE  string = "LTE"
-	MethodLIKE string = "LIKE"
-	MethodNOT  string = "NOT"
-	MethodIN   string = "IN"
+type Method string
 
-	TranslateMethods map[string]string = map[string]string{
-		MethodEQ:   "=",
-		MethodNE:   "!=",
-		MethodGT:   ">",
-		MethodLT:   "<",
-		MethodGTE:  ">=",
-		MethodLTE:  "<=",
-		MethodLIKE: "LIKE",
-		MethodNOT:  "NOT",
-		MethodIN:   "IN",
+var (
+	EQ   Method = "EQ"
+	NE   Method = "NE"
+	GT   Method = "GT"
+	LT   Method = "LT"
+	GTE  Method = "GTE"
+	LTE  Method = "LTE"
+	LIKE Method = "LIKE"
+	NOT  Method = "NOT"
+	IN   Method = "IN"
+
+	TranslateMethods map[Method]string = map[Method]string{
+		EQ:   "=",
+		NE:   "!=",
+		GT:   ">",
+		LT:   "<",
+		GTE:  ">=",
+		LTE:  "<=",
+		LIKE: "LIKE",
+		NOT:  "NOT",
+		IN:   "IN",
 	}
 )
 
@@ -148,6 +150,16 @@ func (p *Query) HaveFilter(name string) bool {
 	return false
 }
 
+// AddFilter adds a filter to Query
+func (p *Query) AddFilter(name string, m Method, value interface{}) *Query {
+	p.Filters = append(p.Filters, &Filter{
+		Name:   name,
+		Method: m,
+		Value:  value,
+	})
+	return p
+}
+
 // RemoveFilter removes the filter by name
 func (p *Query) RemoveFilter(name string) error {
 
@@ -209,7 +221,7 @@ func (p *Query) Where() string {
 	for i := 0; i < len(p.Filters); i++ {
 		filter := p.Filters[i]
 
-		if a, err := filter.SQL(); err == nil {
+		if a, err := filter.Where(); err == nil {
 			where = append(where, a)
 		} else {
 			continue
@@ -286,16 +298,15 @@ func (p *Query) SetValidations(v Validations) *Query {
 }
 
 // New creates new instance of Query
-func New(q url.Values, v Validations) *Query {
-	QP := &Query{
+func New() *Query {
+	return &Query{
 		delimiter: ",",
 	}
-	return QP.SetUrlQuery(q).SetValidations(v)
 }
 
 // NewParse creates new Query instance and Parse it
 func NewParse(q url.Values, v Validations) (*Query, error) {
-	query := New(q, v)
+	query := New().SetUrlQuery(q).SetValidations(v)
 	return query, query.Parse()
 }
 
