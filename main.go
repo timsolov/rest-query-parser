@@ -320,6 +320,14 @@ func NewParse(q url.Values, v Validations) (*Query, error) {
 // as query you can use standart http.Request query by r.URL.Query()
 func (p *Query) Parse() error {
 
+	// clean the filters slice
+	if len(p.Filters) > 0 {
+		for i, _ := range p.Filters {
+			p.Filters[i] = nil
+		}
+		p.Filters = nil
+	}
+
 	// check if required
 	for name, f := range p.validations {
 		if strings.Contains(name, ":required") {
