@@ -7,10 +7,9 @@ import (
 )
 
 type Filter struct {
-	Name       string
-	Value      interface{}
-	Method     Method
-	Expression string
+	Name   string
+	Value  interface{}
+	Method Method
 }
 
 // Where returns condition expression
