@@ -201,7 +201,7 @@ func (p *Query) ReplaceFiltersNames(r FiltersNamesReplacer) {
 
 	for name, newname := range r {
 		for i, v := range p.Filters {
-			if v.Name == name && !p.HaveFilter(newname) {
+			if v.Name == name {
 				p.Filters[i].Name = newname
 			}
 		}
