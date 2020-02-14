@@ -154,23 +154,23 @@ func TestWhere(t *testing.T) {
 		URL, err := url.Parse(c.url)
 		assert.NoError(t, err)
 
-		q := New().SetUrlQuery(URL.Query()).IgnoreUnknownFilters(c.ignore).
-			SetValidations(Validations{
-				"id:int": func(value interface{}) error {
-					if value.(int) > 10 {
-						return errors.New("can't be greater then 10")
-					}
-					return nil
-				},
-				"s": In(
-					"super",
-					"best",
-				),
-				"u:string": nil,
-				"custom": func(value interface{}) error {
-					return nil
-				},
-			})
+		q := NewQV(URL.Query(), Validations{
+			"id:int": func(value interface{}) error {
+				if value.(int) > 10 {
+					return errors.New("can't be greater then 10")
+				}
+				return nil
+			},
+			"s": In(
+				"super",
+				"best",
+			),
+			"u:string": nil,
+			"custom": func(value interface{}) error {
+				return nil
+			},
+		}).IgnoreUnknownFilters(c.ignore)
+
 		err = q.Parse()
 
 		if len(c.err) > 0 {

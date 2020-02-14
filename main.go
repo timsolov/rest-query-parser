@@ -304,6 +304,12 @@ func New() *Query {
 	}
 }
 
+// NewQV creates new Query instance with parameters
+func NewQV(q url.Values, v Validations) *Query {
+	query := New().SetUrlQuery(q).SetValidations(v)
+	return query
+}
+
 // NewParse creates new Query instance and Parse it
 func NewParse(q url.Values, v Validations) (*Query, error) {
 	query := New().SetUrlQuery(q).SetValidations(v)
