@@ -17,7 +17,7 @@ func (f *Filter) Where() (string, error) {
 	var exp string
 
 	switch f.Method {
-	case EQ, NE, GT, LT, GTE, LTE, LIKE:
+	case EQ, NE, GT, LT, GTE, LTE, LIKE, ILIKE:
 		exp = fmt.Sprintf("%s %s ?", f.Name, TranslateMethods[f.Method])
 		return exp, nil
 	case IN:
@@ -38,7 +38,7 @@ func (f *Filter) Args() ([]interface{}, error) {
 	case EQ, NE, GT, LT, GTE, LTE:
 		args = append(args, f.Value)
 		return args, nil
-	case LIKE:
+	case LIKE, ILIKE:
 		value := f.Value.(string)
 		if len(value) >= 2 && strings.HasPrefix(value, "*") {
 			value = "%" + value[1:]
@@ -96,6 +96,7 @@ func (f *Filter) setString(list []string) error {
 		if f.Method != EQ &&
 			f.Method != NE &&
 			f.Method != LIKE &&
+			f.Method != ILIKE &&
 			f.Method != IN {
 			return ErrMethodNotAllowed
 		}
@@ -169,7 +170,7 @@ func (p *Query) parseFilterValue(f *Filter, fType string, value []string, valida
 			}
 		}
 		p.Filters = append(p.Filters, f)
-	default: // str, string and all other unknown types will handle like string
+	default: // str, string and all other unknown types will handle as string
 		err := f.setString(list)
 		if err != nil {
 			return err

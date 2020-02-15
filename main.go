@@ -29,15 +29,16 @@ type Query struct {
 type Method string
 
 var (
-	EQ   Method = "EQ"
-	NE   Method = "NE"
-	GT   Method = "GT"
-	LT   Method = "LT"
-	GTE  Method = "GTE"
-	LTE  Method = "LTE"
-	LIKE Method = "LIKE"
-	NOT  Method = "NOT"
-	IN   Method = "IN"
+	EQ    Method = "EQ"
+	NE    Method = "NE"
+	GT    Method = "GT"
+	LT    Method = "LT"
+	GTE   Method = "GTE"
+	LTE   Method = "LTE"
+	LIKE  Method = "LIKE"
+	ILIKE Method = "ILIKE"
+	NOT   Method = "NOT"
+	IN    Method = "IN"
 
 	TranslateMethods map[Method]string = map[Method]string{
 		EQ:   "=",
