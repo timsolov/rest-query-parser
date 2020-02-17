@@ -20,6 +20,12 @@ func (f *Filter) Where() (string, error) {
 	case EQ, NE, GT, LT, GTE, LTE, LIKE, ILIKE:
 		exp = fmt.Sprintf("%s %s ?", f.Name, TranslateMethods[f.Method])
 		return exp, nil
+	case NOT:
+		if f.Value == NULL {
+			exp = fmt.Sprintf("%s %s NULL", f.Name, TranslateMethods[f.Method])
+			return exp, nil
+		}
+		return exp, ErrUnknownMethod
 	case IN:
 		exp = fmt.Sprintf("%s %s (?)", f.Name, TranslateMethods[f.Method])
 		exp, _, _ = in(exp, f.Value)
@@ -38,6 +44,11 @@ func (f *Filter) Args() ([]interface{}, error) {
 	case EQ, NE, GT, LT, GTE, LTE:
 		args = append(args, f.Value)
 		return args, nil
+	case NOT:
+		if f.Value == NULL {
+			return args, nil
+		}
+		return nil, ErrUnknownMethod
 	case LIKE, ILIKE:
 		value := f.Value.(string)
 		if len(value) >= 2 && strings.HasPrefix(value, "*") {
@@ -110,14 +121,16 @@ func (f *Filter) setBool(list []string) error {
 
 func (f *Filter) setString(list []string) error {
 	if len(list) == 1 {
-		if f.Method != EQ &&
-			f.Method != NE &&
-			f.Method != LIKE &&
-			f.Method != ILIKE &&
-			f.Method != IN {
+		switch f.Method {
+		case EQ, NE, LIKE, ILIKE, IN:
+			f.Value = list[0]
+		case NOT:
+			if strings.Compare(strings.ToUpper(list[0]), NULL) == 0 {
+				f.Value = NULL
+			}
+		default:
 			return ErrMethodNotAllowed
 		}
-		f.Value = list[0]
 	} else {
 		if f.Method != IN {
 			return ErrMethodNotAllowed
@@ -208,6 +221,9 @@ func (p *Query) parseFilterValue(f *Filter, fType string, value []string, valida
 		}
 		if validate != nil {
 			for _, v := range list {
+				if f.Method == NOT && f.Value == NULL {
+					continue
+				}
 				if err := validate(v); err != nil {
 					return err
 				}

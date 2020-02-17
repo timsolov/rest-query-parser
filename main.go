@@ -29,6 +29,8 @@ type Query struct {
 type Method string
 
 var (
+	NULL string = "NULL"
+
 	EQ    Method = "EQ"
 	NE    Method = "NE"
 	GT    Method = "GT"
@@ -48,7 +50,7 @@ var (
 		GTE:  ">=",
 		LTE:  "<=",
 		LIKE: "LIKE",
-		NOT:  "NOT",
+		NOT:  "IS NOT",
 		IN:   "IN",
 	}
 )
