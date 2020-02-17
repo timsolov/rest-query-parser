@@ -91,6 +91,23 @@ func (f *Filter) setInt(list []string) error {
 	return nil
 }
 
+func (f *Filter) setBool(list []string) error {
+	if len(list) == 1 {
+		if f.Method != EQ {
+			return ErrMethodNotAllowed
+		}
+
+		i, err := strconv.ParseBool(list[0])
+		if err != nil {
+			return ErrBadFormat
+		}
+		f.Value = i
+	} else {
+		return ErrMethodNotAllowed
+	}
+	return nil
+}
+
 func (f *Filter) setString(list []string) error {
 	if len(list) == 1 {
 		if f.Method != EQ &&
@@ -166,6 +183,20 @@ func (p *Query) parseFilterValue(f *Filter, fType string, value []string, valida
 					if err := validate(v); err != nil {
 						return err
 					}
+				}
+			}
+		}
+		p.Filters = append(p.Filters, f)
+	case "bool":
+		err := f.setBool(list)
+		if err != nil {
+			return err
+		}
+		if validate != nil {
+			switch f.Value.(type) {
+			case bool:
+				if err := validate(f.Value); err != nil {
+					return err
 				}
 			}
 		}
