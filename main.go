@@ -43,15 +43,16 @@ var (
 	IN    Method = "IN"
 
 	TranslateMethods map[Method]string = map[Method]string{
-		EQ:   "=",
-		NE:   "!=",
-		GT:   ">",
-		LT:   "<",
-		GTE:  ">=",
-		LTE:  "<=",
-		LIKE: "LIKE",
-		NOT:  "IS NOT",
-		IN:   "IN",
+		EQ:    "=",
+		NE:    "!=",
+		GT:    ">",
+		LT:    "<",
+		GTE:   ">=",
+		LTE:   "<=",
+		LIKE:  "LIKE",
+		ILIKE: "ILIKE",
+		NOT:   "IS NOT",
+		IN:    "IN",
 	}
 )
 
