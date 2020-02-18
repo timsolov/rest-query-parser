@@ -21,3 +21,12 @@ func stringInSlice(a string, list []string) bool {
 	}
 	return false
 }
+
+func removeFromSlice(list []string, r string) []string {
+	for i, v := range list {
+		if v == r {
+			return append(list[:i], list[i+1:]...)
+		}
+	}
+	return list
+}

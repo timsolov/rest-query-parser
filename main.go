@@ -355,11 +355,18 @@ func (q *Query) Parse() error {
 		q.Filters = nil
 	}
 
-	// check if required
+	// construct a slice with required names of filters
+
+	var requiredNames []string
+
 	for name, f := range q.validations {
 		if strings.Contains(name, ":required") {
 			oldname := name
+			// oldname = arg1:required
+			// oldname = arg2:int:required
 			newname := strings.Replace(name, ":required", "", 1)
+			// newname = arg1
+			// newname = arg2:int
 
 			if strings.Contains(newname, ":") {
 				parts := strings.Split(newname, ":")
@@ -367,26 +374,19 @@ func (q *Query) Parse() error {
 			} else {
 				name = newname
 			}
+			// name = arg1
+			// name = arg2
 
-			found := false
-			for key, _ := range q.query {
-				filter := &Filter{}
-				err := filter.parseKey(key)
-				if err != nil {
-					return errors.Wrap(err, name)
-				}
-				if filter.Name == name {
-					found = true
-					break
-				}
+			up := strings.ToUpper(name)
+			switch up {
+			case "FIELDS", "OFFSET", "LIMIT", "SORT":
+				requiredNames = append(requiredNames, up)
+			default:
+				requiredNames = append(requiredNames, name)
 			}
 
-			if !found {
-				return errors.Wrap(ErrRequired, name)
-			} else {
-				q.validations[newname] = f
-				delete(q.validations, oldname)
-			}
+			q.validations[newname] = f
+			delete(q.validations, oldname)
 		}
 	}
 
@@ -398,18 +398,22 @@ func (q *Query) Parse() error {
 			if err := q.parseFields(values, q.validations[key]); err != nil {
 				return errors.Wrap(err, key)
 			}
+			requiredNames = removeFromSlice(requiredNames, "FIELDS")
 		} else if strings.ToUpper(key) == "OFFSET" {
 			if err := q.parseOffset(values, q.validations[key]); err != nil {
 				return errors.Wrap(err, key)
 			}
+			requiredNames = removeFromSlice(requiredNames, "OFFSET")
 		} else if strings.ToUpper(key) == "LIMIT" {
 			if err := q.parseLimit(values, q.validations[key]); err != nil {
 				return errors.Wrap(err, key)
 			}
+			requiredNames = removeFromSlice(requiredNames, "LIMIT")
 		} else if strings.ToUpper(key) == "SORT" {
 			if err := q.parseSort(values, q.validations[key]); err != nil {
 				return errors.Wrap(err, key)
 			}
+			requiredNames = removeFromSlice(requiredNames, "SORT")
 		} else {
 
 			if len(values) == 1 {
@@ -470,6 +474,14 @@ func (q *Query) Parse() error {
 				return errors.Wrap(ErrBadFormat, key)
 			}
 
+		}
+	}
+
+	// check required filters
+
+	for _, requiredName := range requiredNames {
+		if !q.HaveFilter(requiredName) {
+			return errors.Wrap(ErrRequired, requiredName)
 		}
 	}
 
