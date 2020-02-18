@@ -7,9 +7,175 @@ import (
 )
 
 type Filter struct {
-	Name   string
+	Key    string // key from URL (eg. "id[eq]")
+	Name   string // name of filter, takes from Key (eg. "id")
+	Method Method // compare method, takes from Key (eg. EQ)
 	Value  interface{}
-	Method Method
+	Or     bool
+}
+
+// detectValidation
+// name - only name without method
+// validations - must be q.validations
+func detectValidation(name string, validations Validations) (ValidationFunc, bool) {
+
+	for k, v := range validations {
+		if strings.Contains(k, ":") {
+			split := strings.Split(k, ":")
+			if split[0] == name {
+				return v, true
+			}
+		} else if k == name {
+			return v, true
+		}
+	}
+
+	return nil, false
+}
+
+// detectType
+func detectType(name string, validations Validations) string {
+
+	for k, _ := range validations {
+		if strings.Contains(k, ":") {
+			split := strings.Split(k, ":")
+			if split[0] == name {
+				switch split[1] {
+				case "int", "i":
+					return "int"
+				case "bool", "b":
+					return "bool"
+				default:
+					return "string"
+				}
+			}
+		}
+	}
+
+	return "string"
+}
+
+// rawKey - url key
+// value - must be one value (if need IN method then values must be separated by comma (,))
+func newFilter(rawKey string, value string, validations Validations) (*Filter, error) {
+	f := &Filter{
+		Key: rawKey,
+	}
+
+	// set Key, Name, Method
+	if err := f.parseKey(rawKey); err != nil {
+		return nil, err
+	}
+
+	// detect have we validate definition on this parameter name or not
+	validate, ok := detectValidation(f.Name, validations)
+	if !ok {
+		return nil, ErrValidationNotFound
+	}
+
+	// detect type by key names in validations
+	valueType := detectType(f.Name, validations)
+
+	if err := f.parseValue(valueType, value); err != nil {
+		return nil, err
+	}
+
+	if validate != nil {
+		if err := f.validate(validate); err != nil {
+			return nil, err
+		}
+	}
+
+	return f, nil
+}
+
+func (f *Filter) validate(validate ValidationFunc) error {
+
+	switch f.Value.(type) {
+	case []int:
+		for _, v := range f.Value.([]int) {
+			err := validate(v)
+			if err != nil {
+				return err
+			}
+		}
+	case []string:
+		for _, v := range f.Value.([]string) {
+			err := validate(v)
+			if err != nil {
+				return err
+			}
+		}
+	case int, bool, string:
+		err := validate(f.Value)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// parseKey parses key from f.Key which must be set from url
+// sets Name, Method
+func (f *Filter) parseKey(key string) error {
+
+	// default Method is EQ
+	f.Method = EQ
+
+	spos := strings.Index(key, "[")
+	if spos != -1 {
+		f.Name = key[:spos]
+		epos := strings.Index(key[spos:], "]")
+		if epos != -1 {
+			// go inside brekets
+			spos = spos + 1
+			epos = spos + epos - 1
+
+			if epos-spos > 0 {
+				f.Method = Method(strings.ToUpper(string(key[spos:epos])))
+				if _, ok := TranslateMethods[f.Method]; !ok {
+					return ErrUnknownMethod
+				}
+			}
+		}
+	} else {
+		f.Name = key
+	}
+
+	return nil
+}
+
+// parseValue parses value depends on its type
+func (f *Filter) parseValue(valueType string, value string) error {
+
+	var list []string
+
+	if strings.Contains(value, DELIMITER_IN) {
+		list = strings.Split(value, DELIMITER_IN)
+	} else {
+		list = append(list, value)
+	}
+
+	switch valueType {
+	case "int":
+		err := f.setInt(list)
+		if err != nil {
+			return err
+		}
+	case "bool":
+		err := f.setBool(list)
+		if err != nil {
+			return err
+		}
+	default: // str, string and all other unknown types will handle as string
+		err := f.setString(list)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Where returns condition expression

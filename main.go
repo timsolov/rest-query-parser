@@ -21,6 +21,7 @@ type Query struct {
 	Filters []*Filter
 
 	delimiter     string
+	DELIMITER_OR  string
 	ignoreUnknown bool
 
 	ErrorMessage string
@@ -29,7 +30,9 @@ type Query struct {
 type Method string
 
 var (
-	NULL string = "NULL"
+	NULL         string = "NULL"
+	DELIMITER_IN string = ","
+	DELIMITER_OR string = "|"
 
 	EQ    Method = "EQ"
 	NE    Method = "NE"
@@ -220,19 +223,44 @@ func (p *Query) Where() string {
 		return ""
 	}
 
-	var where []string
+	var where string
+	var OR bool = false
 
 	for i := 0; i < len(p.Filters); i++ {
 		filter := p.Filters[i]
 
+		prefix := ""
+		suffix := ""
+
+		if filter.Or && !OR {
+			if i == 0 {
+				prefix = "("
+			} else {
+				prefix = " AND ("
+			}
+			OR = true
+		} else if filter.Or && OR {
+			prefix = " OR "
+			// if last element of next element not OR method
+			if i+1 == len(p.Filters) || (i+1 < len(p.Filters) && !p.Filters[i+1].Or) {
+				suffix = ")"
+				OR = false
+			}
+		} else {
+			if i > 0 {
+				prefix = " AND "
+			}
+		}
+
 		if a, err := filter.Where(); err == nil {
-			where = append(where, a)
+			where += fmt.Sprintf("%s%s%s", prefix, a, suffix)
 		} else {
 			continue
 		}
+
 	}
 
-	return strings.Join(where, " AND ")
+	return where
 }
 
 // WhereSQL returns list of filters for WHERE SQL statement
@@ -304,7 +332,8 @@ func (p *Query) SetValidations(v Validations) *Query {
 // New creates new instance of Query
 func New() *Query {
 	return &Query{
-		delimiter: ",",
+		delimiter:    ",",
+		DELIMITER_OR: "|",
 	}
 }
 
@@ -322,18 +351,18 @@ func NewParse(q url.Values, v Validations) (*Query, error) {
 
 // Parse parses the query of URL
 // as query you can use standart http.Request query by r.URL.Query()
-func (p *Query) Parse() error {
+func (q *Query) Parse() error {
 
 	// clean the filters slice
-	if len(p.Filters) > 0 {
-		for i, _ := range p.Filters {
-			p.Filters[i] = nil
+	if len(q.Filters) > 0 {
+		for i, _ := range q.Filters {
+			q.Filters[i] = nil
 		}
-		p.Filters = nil
+		q.Filters = nil
 	}
 
 	// check if required
-	for name, f := range p.validations {
+	for name, f := range q.validations {
 		if strings.Contains(name, ":required") {
 			oldname := name
 			newname := strings.Replace(name, ":required", "", 1)
@@ -346,7 +375,7 @@ func (p *Query) Parse() error {
 			}
 
 			found := false
-			for key, _ := range p.query {
+			for key, _ := range q.query {
 				filter, err := parseFilterKey(key)
 				if err != nil {
 					return errors.Wrap(err, name)
@@ -360,66 +389,92 @@ func (p *Query) Parse() error {
 			if !found {
 				return errors.Wrap(ErrRequired, name)
 			} else {
-				p.validations[newname] = f
-				delete(p.validations, oldname)
+				q.validations[newname] = f
+				delete(q.validations, oldname)
 			}
 		}
 	}
 
-	for key, value := range p.query {
+	//fmt.Println("NEW QUERY:")
+
+	for key, values := range q.query {
 
 		if strings.ToUpper(key) == "FIELDS" {
-			if err := p.parseFields(value, p.validations[key]); err != nil {
+			if err := q.parseFields(values, q.validations[key]); err != nil {
 				return errors.Wrap(err, key)
 			}
 		} else if strings.ToUpper(key) == "OFFSET" {
-			if err := p.parseOffset(value, p.validations[key]); err != nil {
+			if err := q.parseOffset(values, q.validations[key]); err != nil {
 				return errors.Wrap(err, key)
 			}
 		} else if strings.ToUpper(key) == "LIMIT" {
-			if err := p.parseLimit(value, p.validations[key]); err != nil {
+			if err := q.parseLimit(values, q.validations[key]); err != nil {
 				return errors.Wrap(err, key)
 			}
 		} else if strings.ToUpper(key) == "SORT" {
-			if err := p.parseSort(value, p.validations[key]); err != nil {
+			if err := q.parseSort(values, q.validations[key]); err != nil {
 				return errors.Wrap(err, key)
 			}
 		} else {
-			filter, err := parseFilterKey(key)
-			if err != nil {
-				return errors.Wrap(err, key)
-			}
 
-			allowed := false
-			validationFunc := p.validations[filter.Name]
-			_type := "string"
+			if len(values) == 1 {
 
-			for k, v := range p.validations {
-				if strings.Contains(k, ":") {
-					split := strings.Split(k, ":")
-					if split[0] == filter.Name {
-						allowed = true
-						validationFunc = v
-						_type = split[1]
-						break
+				//fmt.Println("new filter:")
+
+				value := values[0]
+
+				if strings.Contains(value, DELIMITER_OR) { // OR multiple filter
+					parts := strings.Split(value, DELIMITER_OR)
+					for i, v := range parts {
+						if i > 0 {
+							u := strings.Split(v, "=")
+							if len(u) < 2 {
+								return errors.Wrap(ErrBadFormat, key)
+							}
+							key = u[0]
+							v = u[1]
+						}
+
+						//fmt.Println("key:", key, "value:", v)
+						filter, err := newFilter(key, v, q.validations)
+
+						if err != nil {
+							if err == ErrValidationNotFound {
+								if q.ignoreUnknown {
+									continue
+								} else {
+									return errors.Wrap(ErrFilterNotFound, key)
+								}
+							}
+							return errors.Wrap(err, key)
+						}
+
+						// set OR
+						filter.Or = true
+
+						q.Filters = append(q.Filters, filter)
 					}
-				} else if k == filter.Name {
-					allowed = true
-					break
+				} else { // Single filter
+					//fmt.Println("key:", key, "value:", value)
+					filter, err := newFilter(key, value, q.validations)
+					if err != nil {
+						if err == ErrValidationNotFound {
+							if q.ignoreUnknown {
+								continue
+							} else {
+								return errors.Wrap(ErrFilterNotFound, key)
+							}
+						}
+						return errors.Wrap(err, key)
+					}
+
+					q.Filters = append(q.Filters, filter)
 				}
+
+			} else {
+				return errors.Wrap(ErrBadFormat, key)
 			}
 
-			if !allowed {
-				if p.ignoreUnknown {
-					continue
-				} else {
-					return errors.Wrap(ErrFilterNotAllowed, key)
-				}
-			}
-
-			if err = p.parseFilterValue(filter, _type, value, validationFunc); err != nil {
-				return errors.Wrap(err, key)
-			}
 		}
 	}
 

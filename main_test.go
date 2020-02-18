@@ -146,11 +146,13 @@ func TestWhere(t *testing.T) {
 		{url: "?u[eq]=1,2", expected: "", err: "u[eq]: method are not allowed"},
 		{url: "?u[gt]=1", expected: "", err: "u[gt]: method are not allowed"},
 		{url: "?id[in]=1,2", expected: " WHERE id IN (?, ?)"},
-		{url: "?id[eq]=1&id[eq]=4", err: "id[eq]: similar names of keys are not allowed"},
+		{url: "?id[eq]=1&id[eq]=4", err: "id[eq]: bad format"},
 		{url: "?id[gte]=1&id[lte]=4", expected: " WHERE id >= ? AND id <= ?", expected2: " WHERE id <= ? AND id >= ?"},
+		{url: "?id[gte]=1|id[lte]=4", expected: " WHERE (id >= ? OR id <= ?)", expected2: " WHERE (id <= ? OR id >= ?)"},
 	}
 	for _, c := range cases {
 		//t.Log(c)
+
 		URL, err := url.Parse(c.url)
 		assert.NoError(t, err)
 
@@ -177,6 +179,7 @@ func TestWhere(t *testing.T) {
 			assert.EqualError(t, err, c.err)
 		}
 		where := q.WhereSQL()
+		//t.Log(q.SQL("table"), q.Args())
 		if len(c.expected2) > 0 {
 			//t.Log("expected:", c.expected, "or:", c.expected2, "got:", where)
 			assert.True(t, c.expected == where || c.expected2 == where)
@@ -189,11 +192,35 @@ func TestWhere(t *testing.T) {
 
 }
 
+func TestWhere2(t *testing.T) {
+
+	q := NewQV(nil, Validations{
+		"id:int": func(value interface{}) error {
+			if value.(int) > 10 {
+				return errors.New("can't be greater then 10")
+			}
+			return nil
+		},
+		"s": In(
+			"super",
+			"best",
+		),
+		"u:string": nil,
+		"custom": func(value interface{}) error {
+			return nil
+		},
+	})
+	assert.NoError(t, q.SetUrlRaw("?id[eq]=10&s[like]=super|u[like]=*best*&id[gt]=1"))
+	assert.NoError(t, q.Parse())
+	t.Log(q.SQL("tab"), q.Args())
+}
+
 func TestArgs(t *testing.T) {
-	q := New().Delimiter("|")
+	q := New()
+	DELIMITER_IN = "!"
 	assert.Len(t, q.Args(), 0)
 	// setup url
-	URL, err := url.Parse("?fields=id,status&sort=id,+id,-id&offset=10&one=123&two=test&three[like]=*www*&three[in]=www1|www2")
+	URL, err := url.Parse("?fields=id,status&sort=id,+id,-id&offset=10&one=123&two=test&three[like]=*www*&three[in]=www1!www2")
 	assert.NoError(t, err)
 
 	err = q.SetUrlQuery(URL.Query()).SetValidations(Validations{"one:int": nil, "two": nil, "three": nil}).Parse()
