@@ -55,6 +55,14 @@ func detectType(name string, validations Validations) string {
 	return "string"
 }
 
+func isNotNull(f *Filter) bool {
+	s, ok := f.Value.(string)
+	if !ok {
+		return false
+	}
+	return f.Method == NOT && strings.ToUpper(s) == NULL
+}
+
 // rawKey - url key
 // value - must be one value (if need IN method then values must be separated by comma (,))
 func newFilter(rawKey string, value string, validations Validations) (*Filter, error) {
@@ -80,7 +88,7 @@ func newFilter(rawKey string, value string, validations Validations) (*Filter, e
 		return nil, err
 	}
 
-	if validate != nil {
+	if !isNotNull(f) && validate != nil {
 		if err := f.validate(validate); err != nil {
 			return nil, err
 		}
