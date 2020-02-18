@@ -212,7 +212,7 @@ func TestWhere2(t *testing.T) {
 	})
 	assert.NoError(t, q.SetUrlRaw("?id[eq]=10&s[like]=super|u[like]=*best*&id[gt]=1"))
 	assert.NoError(t, q.Parse())
-	t.Log(q.SQL("tab"), q.Args())
+	//t.Log(q.SQL("tab"), q.Args())
 }
 
 func TestArgs(t *testing.T) {

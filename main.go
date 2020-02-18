@@ -64,12 +64,6 @@ type Sort struct {
 	Desc bool
 }
 
-// Delimiter sets delimiter for values of multiple filter
-func (p *Query) Delimiter(delimiter string) *Query {
-	p.delimiter = delimiter
-	return p
-}
-
 // IgnoreUnknownFilters set behavior for Parser to raise ErrFilterNotAllowed to undefined filters or not
 func (p *Query) IgnoreUnknownFilters(i bool) *Query {
 	p.ignoreUnknown = i
@@ -376,7 +370,8 @@ func (q *Query) Parse() error {
 
 			found := false
 			for key, _ := range q.query {
-				filter, err := parseFilterKey(key)
+				filter := &Filter{}
+				err := filter.parseKey(key)
 				if err != nil {
 					return errors.Wrap(err, name)
 				}
