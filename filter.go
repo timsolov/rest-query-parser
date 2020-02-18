@@ -298,18 +298,21 @@ func (f *Filter) setString(list []string) error {
 		switch f.Method {
 		case EQ, NE, LIKE, ILIKE, IN:
 			f.Value = list[0]
+			return nil
 		case NOT:
 			if strings.Compare(strings.ToUpper(list[0]), NULL) == 0 {
 				f.Value = NULL
+				return nil
 			}
 		default:
 			return ErrMethodNotAllowed
 		}
 	} else {
-		if f.Method != IN {
-			return ErrMethodNotAllowed
+		switch f.Method {
+		case IN:
+			f.Value = list
+			return nil
 		}
-		f.Value = list
 	}
-	return nil
+	return ErrMethodNotAllowed
 }
