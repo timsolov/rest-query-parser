@@ -263,14 +263,14 @@ func TestReplaceFiltersNames(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, q.HaveFilter("one"))
 
-	q.ReplaceNames(NamesReplacer{
+	q.ReplaceNames(Replacer{
 		"one": "two",
 	})
 
 	assert.Len(t, q.Filters, 2)
 	assert.True(t, q.HaveFilter("two"))
 
-	q.ReplaceNames(NamesReplacer{
+	q.ReplaceNames(Replacer{
 		"another":    "r.another",
 		"nonpresent": "hello",
 	})
