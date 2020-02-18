@@ -263,14 +263,14 @@ func TestReplaceFiltersNames(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, q.HaveFilter("one"))
 
-	q.ReplaceFiltersNames(FiltersNamesReplacer{
+	q.ReplaceNames(NamesReplacer{
 		"one": "two",
 	})
 
 	assert.Len(t, q.Filters, 2)
 	assert.True(t, q.HaveFilter("two"))
 
-	q.ReplaceFiltersNames(FiltersNamesReplacer{
+	q.ReplaceNames(NamesReplacer{
 		"another":    "r.another",
 		"nonpresent": "hello",
 	})
@@ -293,11 +293,11 @@ func TestReplaceFiltersNames(t *testing.T) {
 
 func TestRequiredFilter(t *testing.T) {
 	// required but not present
-	URL, err := url.Parse("?one=1")
+	URL, err := url.Parse("?")
 	assert.NoError(t, err)
 
 	qp, err := NewParse(URL.Query(), Validations{"limit:required": nil})
-	assert.EqualError(t, err, "limit: required")
+	assert.EqualError(t, err, "LIMIT: required")
 
 	// required and present
 	URL, err = url.Parse("?limit=10&one[eq]=1")

@@ -192,18 +192,24 @@ func (p *Query) GetFilter(name string) (*Filter, error) {
 	return nil, ErrFilterNotFound
 }
 
-// FiltersNamesReplacer struct for ReplaceFiltersNames method
-type FiltersNamesReplacer map[string]string
+// NamesReplacer struct for ReplaceNames method
+type NamesReplacer map[string]string
 
-// ReplaceFiltersNames replace all specified name to new names
+// ReplaceNames replace all specified name to new names
+// you can ask filter/field "user_id" but replace it which "id" for DB
 // parameter is map[string]string which means map[currentName]newName
-// usage: rqp.ReplaceFiltersNames(rqp.FiltersNamesReplacer{"oldName":"newName"})
-func (p *Query) ReplaceFiltersNames(r FiltersNamesReplacer) {
+// usage: rqp.ReplaceFiltersNames(rqp.NamesReplacer{"oldName":"newName"})
+func (p *Query) ReplaceNames(r NamesReplacer) {
 
 	for name, newname := range r {
 		for i, v := range p.Filters {
 			if v.Name == name {
 				p.Filters[i].Name = newname
+			}
+		}
+		for i, v := range p.Fields {
+			if v == name {
+				p.Fields[i] = newname
 			}
 		}
 	}
