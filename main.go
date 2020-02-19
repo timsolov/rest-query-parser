@@ -499,9 +499,13 @@ func (p *Query) parseSort(value []string, validate ValidationFunc) error {
 		return ErrBadFormat
 	}
 
+	if validate == nil {
+		return ErrValidationNotFound
+	}
+
 	list := value
-	if strings.Contains(value[0], p.delimiter) {
-		list = strings.Split(value[0], p.delimiter)
+	if strings.Contains(value[0], DELIMITER_IN) {
+		list = strings.Split(value[0], DELIMITER_IN)
 	}
 
 	list = cleanSliceString(list)
@@ -545,7 +549,14 @@ func (p *Query) parseSort(value []string, validate ValidationFunc) error {
 }
 
 func (p *Query) parseFields(value []string, validate ValidationFunc) error {
-	if len(value) == 1 {
+	if len(value) != 1 {
+		return ErrBadFormat
+	}
+
+	if validate == nil {
+		return ErrValidationNotFound
+	}
+
 		list := value
 		if strings.Contains(value[0], p.delimiter) {
 			list = strings.Split(value[0], p.delimiter)
