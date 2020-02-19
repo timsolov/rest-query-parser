@@ -78,6 +78,14 @@ func (p *Query) FieldsSQL() string {
 	return strings.Join(p.Fields, ", ")
 }
 
+// SelectSQL returns SELECT with fields from Filter "fields" from URL or star ("*") if nothing provided
+func (q *Query) SelectSQL() string {
+	if len(q.Fields) == 0 {
+		return "*"
+	}
+	return fmt.Sprintf("SELECT %s", q.FieldsSQL())
+}
+
 // HaveField returns true if request asks for field
 func (p *Query) HaveField(field string) bool {
 	return stringInSlice(field, p.Fields)
@@ -111,7 +119,7 @@ func (p *Query) SortSQL() string {
 		return ""
 	}
 
-	s := " ORDER BY "
+	var s string
 
 	for i := 0; i < len(p.Sorts); i++ {
 		if i > 0 {
@@ -125,6 +133,13 @@ func (p *Query) SortSQL() string {
 	}
 
 	return s
+}
+
+func (q *Query) OrderBySQL() string {
+	if len(q.Sorts) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" ORDER BY %s", q.SortSQL())
 }
 
 // HaveSortBy returns true if request contains some sorting
@@ -178,6 +193,32 @@ func (p *Query) RemoveFilter(name string) error {
 	}
 
 	return ErrFilterNotFound
+}
+
+// AddValidation adds a validation to Query
+func (q *Query) AddValidation(NameAndTags string, v ValidationFunc) *Query {
+	q.validations[NameAndTags] = v
+	return q
+}
+
+// AddValidation remove a validation from Query
+// You can provide full name of filer with tags or only name of filter:
+// RemoveValidation("id:int") and RemoveValidation("id") are same
+func (q *Query) RemoveValidation(NameAndOrTags string) error {
+	for k, _ := range q.validations {
+		if k == NameAndOrTags {
+			delete(q.validations, k)
+			return nil
+		}
+		if strings.Contains(k, ":") {
+			parts := strings.Split(k, ":")
+			if parts[0] == NameAndOrTags {
+				delete(q.validations, k)
+				return nil
+			}
+		}
+	}
+	return ErrValidationNotFound
 }
 
 // GetFilter returns filter by name
@@ -301,20 +342,23 @@ func (p *Query) SQL(table string) string {
 		p.FieldsSQL(),
 		table,
 		p.WhereSQL(),
-		p.SortSQL(),
+		p.OrderBySQL(),
 		p.LimitSQL(),
 		p.OffsetSQL(),
 	)
 }
 
-// SetUrlQuery change url query for the instance
+// SetUrlQuery change url in the Query for parsing
+// uses when you need provide Query from http.HandlerFunc(w http.ResponseWriter, r *http.Request)
+// you can do q.SetUrlValues(r.URL.Query())
 func (p *Query) SetUrlQuery(q url.Values) *Query {
 	p.query = q
 	return p
 }
 
-// SetUrlRaw change url query for the instance
-func (p *Query) SetUrlRaw(Url string) error {
+// SetUrlString change url in the Query for parsing
+// uses when you would like to provide raw URL string to parsing
+func (p *Query) SetUrlString(Url string) error {
 	u, err := url.Parse(Url)
 	if err != nil {
 		return err
@@ -383,9 +427,9 @@ func (q *Query) Parse() error {
 			// name = arg1
 			// name = arg2
 
-			up := strings.ToUpper(name)
+			up := strings.ToLower(name)
 			switch up {
-			case "FIELDS", "OFFSET", "LIMIT", "SORT":
+			case "fields", "offset", "limit", "sort":
 				requiredNames = append(requiredNames, up)
 			default:
 				requiredNames = append(requiredNames, name)
@@ -400,26 +444,26 @@ func (q *Query) Parse() error {
 
 	for key, values := range q.query {
 
-		if strings.ToUpper(key) == "FIELDS" {
+		if strings.ToLower(key) == "fields" {
 			if err := q.parseFields(values, q.validations[key]); err != nil {
 				return errors.Wrap(err, key)
 			}
-			requiredNames = removeFromSlice(requiredNames, "FIELDS")
-		} else if strings.ToUpper(key) == "OFFSET" {
+			requiredNames = removeFromSlice(requiredNames, "fields")
+		} else if strings.ToLower(key) == "offset" {
 			if err := q.parseOffset(values, q.validations[key]); err != nil {
 				return errors.Wrap(err, key)
 			}
-			requiredNames = removeFromSlice(requiredNames, "OFFSET")
-		} else if strings.ToUpper(key) == "LIMIT" {
+			requiredNames = removeFromSlice(requiredNames, "offset")
+		} else if strings.ToLower(key) == "limit" {
 			if err := q.parseLimit(values, q.validations[key]); err != nil {
 				return errors.Wrap(err, key)
 			}
-			requiredNames = removeFromSlice(requiredNames, "LIMIT")
-		} else if strings.ToUpper(key) == "SORT" {
+			requiredNames = removeFromSlice(requiredNames, "limit")
+		} else if strings.ToLower(key) == "sort" {
 			if err := q.parseSort(values, q.validations[key]); err != nil {
 				return errors.Wrap(err, key)
 			}
-			requiredNames = removeFromSlice(requiredNames, "SORT")
+			requiredNames = removeFromSlice(requiredNames, "sort")
 		} else {
 
 			if len(values) == 1 {
@@ -557,25 +601,23 @@ func (p *Query) parseFields(value []string, validate ValidationFunc) error {
 		return ErrValidationNotFound
 	}
 
-		list := value
-		if strings.Contains(value[0], p.delimiter) {
-			list = strings.Split(value[0], p.delimiter)
-		}
+	list := value
+	if strings.Contains(value[0], p.delimiter) {
+		list = strings.Split(value[0], p.delimiter)
+	}
 
-		list = cleanSliceString(list)
+	list = cleanSliceString(list)
 
-		if validate != nil {
-			for _, v := range list {
-				if err := validate(v); err != nil {
-					return err
-				}
+	if validate != nil {
+		for _, v := range list {
+			if err := validate(v); err != nil {
+				return err
 			}
 		}
-
-		p.Fields = list
-		return nil
 	}
-	return ErrBadFormat
+
+	p.Fields = list
+	return nil
 }
 
 func (p *Query) parseOffset(value []string, validate ValidationFunc) error {
