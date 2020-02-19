@@ -55,7 +55,7 @@ func main() {
 	fmt.Println(q.Args())       // [1 5 one %tim% %tim%]
 
 	q.AddValidation("fields", rqp.In("id", "name"))
-	q.SetUrlString("http://localhost/?fields=id,name&sort=id&limit=10")
+	q.SetUrlString("http://localhost/?fields=id,name&limit=10")
 	q.Parse()
 
 	fmt.Println(q.SQL("table")) // SELECT id, name FROM table ORDER BY id LIMIT 10

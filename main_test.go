@@ -19,7 +19,6 @@ func TestFields(t *testing.T) {
 	}{
 		{url: "?", expected: "*", err: nil},
 		{url: "?fields=", expected: "*", err: nil},
-		{url: "?fields=*", expected: "*", err: nil},
 		{url: "?fields=id", expected: "id", err: nil},
 		{url: "?fields=id,name", expected: "id, name", err: nil},
 	}
@@ -28,6 +27,8 @@ func TestFields(t *testing.T) {
 		URL, err := url.Parse(c.url)
 		assert.NoError(t, err)
 		q, err := NewParse(URL.Query(), nil)
+		q.AddValidation("fields", In("id", "name"))
+		err = q.Parse()
 		assert.Equal(t, c.err, err)
 		assert.Equal(t, c.expected, q.FieldsSQL())
 	}
@@ -98,15 +99,15 @@ func TestSort(t *testing.T) {
 	for _, c := range cases {
 		URL, err := url.Parse(c.url)
 		assert.NoError(t, err)
-		q, err := NewParse(URL.Query(), nil)
+		q, err := NewParse(URL.Query(), Validations{"sort": In("id", "name")})
 		assert.Equal(t, c.err, err)
 		assert.Equal(t, c.expected, q.SortSQL())
 	}
 
 	q := New().SetValidations(Validations{"sort": In("id")})
-	err := q.SetUrlRaw("://")
+	err := q.SetUrlString("://")
 	assert.Error(t, err)
-	err = q.SetUrlRaw("?sort=id")
+	err = q.SetUrlString("?sort=id")
 	assert.NoError(t, err)
 	err = q.Parse()
 	assert.NoError(t, err)
@@ -210,20 +211,26 @@ func TestWhere2(t *testing.T) {
 			return nil
 		},
 	})
-	assert.NoError(t, q.SetUrlRaw("?id[eq]=10&s[like]=super|u[like]=*best*&id[gt]=1"))
+	assert.NoError(t, q.SetUrlString("?id[eq]=10&s[like]=super|u[like]=*best*&id[gt]=1"))
 	assert.NoError(t, q.Parse())
 	//t.Log(q.SQL("tab"), q.Args())
 }
 
 func TestArgs(t *testing.T) {
 	q := New()
-	DELIMITER_IN = "!"
+	q.SetDelimiterIN("!")
 	assert.Len(t, q.Args(), 0)
 	// setup url
-	URL, err := url.Parse("?fields=id,status&sort=id,+id,-id&offset=10&one=123&two=test&three[like]=*www*&three[in]=www1!www2")
+	URL, err := url.Parse("?fields=id!status&sort=id!+id!-id&offset=10&one=123&two=test&three[like]=*www*&three[in]=www1!www2")
 	assert.NoError(t, err)
 
-	err = q.SetUrlQuery(URL.Query()).SetValidations(Validations{"one:int": nil, "two": nil, "three": nil}).Parse()
+	err = q.SetUrlQuery(URL.Query()).SetValidations(Validations{
+		"fields":  In("id", "status"),
+		"sort":    In("id"),
+		"one:int": nil,
+		"two":     nil,
+		"three":   nil,
+	}).Parse()
 	assert.NoError(t, err)
 
 	assert.Len(t, q.Args(), 5)
@@ -238,15 +245,15 @@ func TestSQL(t *testing.T) {
 	URL, err := url.Parse("?fields=id,status&sort=id&offset=10&some=123")
 	assert.NoError(t, err)
 
-	q := New().SetUrlQuery(URL.Query())
+	q := New().SetUrlQuery(URL.Query()).
+		AddValidation("fields", In("id", "status")).
+		AddValidation("sort", In("id"))
 	q.IgnoreUnknownFilters(true)
 	err = q.Parse()
 	assert.NoError(t, err)
 	assert.Equal(t, "SELECT id, status FROM test ORDER BY id OFFSET 10", q.SQL("test"))
 
-	q.SetValidations(Validations{
-		"some:int": nil,
-	})
+	q.AddValidation("some:int", nil)
 	err = q.Parse()
 	assert.NoError(t, err)
 
@@ -297,7 +304,7 @@ func TestRequiredFilter(t *testing.T) {
 	assert.NoError(t, err)
 
 	qp, err := NewParse(URL.Query(), Validations{"limit:required": nil})
-	assert.EqualError(t, err, "LIMIT: required")
+	assert.EqualError(t, err, "limit: required")
 
 	// required and present
 	URL, err = url.Parse("?limit=10&one[eq]=1")
@@ -313,7 +320,7 @@ func TestRequiredFilter(t *testing.T) {
 
 func TestAddField(t *testing.T) {
 	q := New()
-	q.SetUrlRaw("?test=ok")
+	q.SetUrlString("?test=ok")
 	q.AddField("test")
 	assert.Len(t, q.Fields, 1)
 	assert.True(t, q.HaveField("test"))

@@ -65,7 +65,7 @@ func isNotNull(f *Filter) bool {
 
 // rawKey - url key
 // value - must be one value (if need IN method then values must be separated by comma (,))
-func newFilter(rawKey string, value string, validations Validations) (*Filter, error) {
+func newFilter(rawKey string, value string, delimiter string, validations Validations) (*Filter, error) {
 	f := &Filter{
 		Key: rawKey,
 	}
@@ -84,7 +84,7 @@ func newFilter(rawKey string, value string, validations Validations) (*Filter, e
 	// detect type by key names in validations
 	valueType := detectType(f.Name, validations)
 
-	if err := f.parseValue(valueType, value); err != nil {
+	if err := f.parseValue(valueType, value, delimiter); err != nil {
 		return nil, err
 	}
 
@@ -155,12 +155,12 @@ func (f *Filter) parseKey(key string) error {
 }
 
 // parseValue parses value depends on its type
-func (f *Filter) parseValue(valueType string, value string) error {
+func (f *Filter) parseValue(valueType string, value string, delimiter string) error {
 
 	var list []string
 
-	if strings.Contains(value, DELIMITER_IN) {
-		list = strings.Split(value, DELIMITER_IN)
+	if strings.Contains(value, delimiter) {
+		list = strings.Split(value, delimiter)
 	} else {
 		list = append(list, value)
 	}

@@ -20,8 +20,8 @@ type Query struct {
 	Sorts   []Sort
 	Filters []*Filter
 
-	delimiter     string
-	DELIMITER_OR  string
+	delimiterIN   string
+	delimiterOR   string
 	ignoreUnknown bool
 
 	ErrorMessage string
@@ -30,9 +30,7 @@ type Query struct {
 type Method string
 
 var (
-	NULL         string = "NULL"
-	DELIMITER_IN string = ","
-	DELIMITER_OR string = "|"
+	NULL string = "NULL"
 
 	EQ    Method = "EQ"
 	NE    Method = "NE"
@@ -65,9 +63,21 @@ type Sort struct {
 }
 
 // IgnoreUnknownFilters set behavior for Parser to raise ErrFilterNotAllowed to undefined filters or not
-func (p *Query) IgnoreUnknownFilters(i bool) *Query {
-	p.ignoreUnknown = i
-	return p
+func (q *Query) IgnoreUnknownFilters(i bool) *Query {
+	q.ignoreUnknown = i
+	return q
+}
+
+// SetDelimiterIN sets delimiter for values of filters
+func (q *Query) SetDelimiterIN(d string) *Query {
+	q.delimiterIN = d
+	return q
+}
+
+// SetDelimiterOR sets delimiter for OR filters in query part of URL
+func (q *Query) SetDelimiterOR(d string) *Query {
+	q.delimiterOR = d
+	return q
 }
 
 // FieldsSQL returns elements for querying in SELECT statement or * if fields parameter not specified
@@ -114,7 +124,7 @@ func (p *Query) LimitSQL() string {
 
 // SortSQL returns ORDER BY statement
 // you can use +/- prefix to specify direction of sorting (+ is default)
-func (p *Query) SortSQL() string {
+func (p *Query) SortList() string {
 	if len(p.Sorts) == 0 {
 		return ""
 	}
@@ -135,11 +145,11 @@ func (p *Query) SortSQL() string {
 	return s
 }
 
-func (q *Query) OrderBySQL() string {
+func (q *Query) SortSQL() string {
 	if len(q.Sorts) == 0 {
 		return ""
 	}
-	return fmt.Sprintf(" ORDER BY %s", q.SortSQL())
+	return fmt.Sprintf(" ORDER BY %s", q.SortList())
 }
 
 // HaveSortBy returns true if request contains some sorting
@@ -197,6 +207,9 @@ func (p *Query) RemoveFilter(name string) error {
 
 // AddValidation adds a validation to Query
 func (q *Query) AddValidation(NameAndTags string, v ValidationFunc) *Query {
+	if q.validations == nil {
+		q.validations = Validations{}
+	}
 	q.validations[NameAndTags] = v
 	return q
 }
@@ -342,7 +355,7 @@ func (p *Query) SQL(table string) string {
 		p.FieldsSQL(),
 		table,
 		p.WhereSQL(),
-		p.OrderBySQL(),
+		p.SortSQL(),
 		p.LimitSQL(),
 		p.OffsetSQL(),
 	)
@@ -376,8 +389,8 @@ func (p *Query) SetValidations(v Validations) *Query {
 // New creates new instance of Query
 func New() *Query {
 	return &Query{
-		delimiter:    ",",
-		DELIMITER_OR: "|",
+		delimiterIN: ",",
+		delimiterOR: "|",
 	}
 }
 
@@ -472,8 +485,8 @@ func (q *Query) Parse() error {
 
 				value := values[0]
 
-				if strings.Contains(value, DELIMITER_OR) { // OR multiple filter
-					parts := strings.Split(value, DELIMITER_OR)
+				if strings.Contains(value, q.delimiterOR) { // OR multiple filter
+					parts := strings.Split(value, q.delimiterOR)
 					for i, v := range parts {
 						if i > 0 {
 							u := strings.Split(v, "=")
@@ -485,7 +498,7 @@ func (q *Query) Parse() error {
 						}
 
 						//fmt.Println("key:", key, "value:", v)
-						filter, err := newFilter(key, v, q.validations)
+						filter, err := newFilter(key, v, q.delimiterIN, q.validations)
 
 						if err != nil {
 							if err == ErrValidationNotFound {
@@ -505,7 +518,7 @@ func (q *Query) Parse() error {
 					}
 				} else { // Single filter
 					//fmt.Println("key:", key, "value:", value)
-					filter, err := newFilter(key, value, q.validations)
+					filter, err := newFilter(key, value, q.delimiterIN, q.validations)
 					if err != nil {
 						if err == ErrValidationNotFound {
 							if q.ignoreUnknown {
@@ -538,7 +551,7 @@ func (q *Query) Parse() error {
 	return nil
 }
 
-func (p *Query) parseSort(value []string, validate ValidationFunc) error {
+func (q *Query) parseSort(value []string, validate ValidationFunc) error {
 	if len(value) != 1 {
 		return ErrBadFormat
 	}
@@ -548,8 +561,8 @@ func (p *Query) parseSort(value []string, validate ValidationFunc) error {
 	}
 
 	list := value
-	if strings.Contains(value[0], DELIMITER_IN) {
-		list = strings.Split(value[0], DELIMITER_IN)
+	if strings.Contains(value[0], q.delimiterIN) {
+		list = strings.Split(value[0], q.delimiterIN)
 	}
 
 	list = cleanSliceString(list)
@@ -587,12 +600,12 @@ func (p *Query) parseSort(value []string, validate ValidationFunc) error {
 		})
 	}
 
-	p.Sorts = sort
+	q.Sorts = sort
 
 	return nil
 }
 
-func (p *Query) parseFields(value []string, validate ValidationFunc) error {
+func (q *Query) parseFields(value []string, validate ValidationFunc) error {
 	if len(value) != 1 {
 		return ErrBadFormat
 	}
@@ -602,8 +615,8 @@ func (p *Query) parseFields(value []string, validate ValidationFunc) error {
 	}
 
 	list := value
-	if strings.Contains(value[0], p.delimiter) {
-		list = strings.Split(value[0], p.delimiter)
+	if strings.Contains(value[0], q.delimiterIN) {
+		list = strings.Split(value[0], q.delimiterIN)
 	}
 
 	list = cleanSliceString(list)
@@ -616,7 +629,7 @@ func (p *Query) parseFields(value []string, validate ValidationFunc) error {
 		}
 	}
 
-	p.Fields = list
+	q.Fields = list
 	return nil
 }
 
