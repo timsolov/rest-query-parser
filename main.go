@@ -14,17 +14,17 @@ type Query struct {
 	query       map[string][]string
 	validations Validations
 
-	Fields  []string
-	Offset  int
-	Limit   int
-	Sorts   []Sort
-	Filters []*Filter
+	fields  []string
+	offset  int
+	limit   int
+	sorts   []Sort
+	filters []*Filter
 
 	delimiterIN   string
 	delimiterOR   string
 	ignoreUnknown bool
 
-	ErrorMessage string
+	Error error
 }
 
 type Method string
@@ -80,17 +80,17 @@ func (q *Query) SetDelimiterOR(d string) *Query {
 	return q
 }
 
-// FieldsSQL returns elements for querying in SELECT statement or * if fields parameter not specified
+// Fields returns elements list separated by comma (",") for querying in SELECT statement or a star ("*") if nothing provided
 func (p *Query) FieldsSQL() string {
-	if len(p.Fields) == 0 {
+	if len(p.fields) == 0 {
 		return "*"
 	}
-	return strings.Join(p.Fields, ", ")
+	return strings.Join(p.fields, ", ")
 }
 
-// SelectSQL returns SELECT with fields from Filter "fields" from URL or star ("*") if nothing provided
+// SelectSQL returns SELECT with fields from Filter "fields" from URL or a star ("*") if nothing provided
 func (q *Query) SelectSQL() string {
-	if len(q.Fields) == 0 {
+	if len(q.fields) == 0 {
 		return "*"
 	}
 	return fmt.Sprintf("SELECT %s", q.FieldsSQL())
@@ -98,64 +98,66 @@ func (q *Query) SelectSQL() string {
 
 // HaveField returns true if request asks for field
 func (p *Query) HaveField(field string) bool {
-	return stringInSlice(field, p.Fields)
+	return stringInSlice(field, p.fields)
 }
 
 // AddField returns true if request asks for field
 func (p *Query) AddField(field string) {
-	p.Fields = append(p.Fields, field)
+	p.fields = append(p.fields, field)
 }
 
 // OffsetSQL returns OFFSET statement
 func (p *Query) OffsetSQL() string {
-	if p.Offset > 0 {
-		return fmt.Sprintf(" OFFSET %d", p.Offset)
+	if p.offset > 0 {
+		return fmt.Sprintf(" OFFSET %d", p.offset)
 	}
 	return ""
 }
 
 // LimitSQL returns LIMIT statement
 func (p *Query) LimitSQL() string {
-	if p.Limit > 0 {
-		return fmt.Sprintf(" LIMIT %d", p.Limit)
+	if p.limit > 0 {
+		return fmt.Sprintf(" LIMIT %d", p.limit)
 	}
 	return ""
 }
 
-// SortSQL returns ORDER BY statement
+// Sort returns list of elements for ORDER BY statement
 // you can use +/- prefix to specify direction of sorting (+ is default)
-func (p *Query) SortList() string {
-	if len(p.Sorts) == 0 {
+func (p *Query) Sort() string {
+	if len(p.sorts) == 0 {
 		return ""
 	}
 
 	var s string
 
-	for i := 0; i < len(p.Sorts); i++ {
+	for i := 0; i < len(p.sorts); i++ {
 		if i > 0 {
 			s += ", "
 		}
-		if p.Sorts[i].Desc {
-			s += fmt.Sprintf("%s DESC", p.Sorts[i].By)
+		if p.sorts[i].Desc {
+			s += fmt.Sprintf("%s DESC", p.sorts[i].By)
 		} else {
-			s += p.Sorts[i].By
+			s += p.sorts[i].By
 		}
 	}
 
 	return s
 }
 
+// Sort returns ORDER BY statement with list of elements for sorting
+// you can use +/- prefix to specify direction of sorting (+ is default)
 func (q *Query) SortSQL() string {
-	if len(q.Sorts) == 0 {
+	if len(q.sorts) == 0 {
 		return ""
 	}
-	return fmt.Sprintf(" ORDER BY %s", q.SortList())
+	return fmt.Sprintf(" ORDER BY %s", q.Sort())
 }
 
 // HaveSortBy returns true if request contains some sorting
 func (p *Query) HaveSortBy(by string) bool {
 
-	for _, v := range p.Sorts {
+	for _, v := range p.sorts {
 		if v.By == by {
 			return true
 		}
@@ -167,7 +169,7 @@ func (p *Query) HaveSortBy(by string) bool {
 // HaveFilter returns true if request contains some filter
 func (p *Query) HaveFilter(name string) bool {
 
-	for _, v := range p.Filters {
+	for _, v := range p.filters {
 		if v.Name == name {
 			return true
 		}
@@ -178,7 +180,7 @@ func (p *Query) HaveFilter(name string) bool {
 
 // AddFilter adds a filter to Query
 func (p *Query) AddFilter(name string, m Method, value interface{}) *Query {
-	p.Filters = append(p.Filters, &Filter{
+	p.filters = append(p.filters, &Filter{
 		Name:   name,
 		Method: m,
 		Value:  value,
@@ -189,14 +191,14 @@ func (p *Query) AddFilter(name string, m Method, value interface{}) *Query {
 // RemoveFilter removes the filter by name
 func (p *Query) RemoveFilter(name string) error {
 
-	for i, v := range p.Filters {
+	for i, v := range p.filters {
 		if v.Name == name {
 			// safe remove element from slice
-			if i < len(p.Filters)-1 {
-				copy(p.Filters[i:], p.Filters[i+1:])
+			if i < len(p.filters)-1 {
+				copy(p.filters[i:], p.filters[i+1:])
 			}
-			p.Filters[len(p.Filters)-1] = nil
-			p.Filters = p.Filters[:len(p.Filters)-1]
+			p.filters[len(p.filters)-1] = nil
+			p.filters = p.filters[:len(p.filters)-1]
 
 			return nil
 		}
@@ -237,7 +239,7 @@ func (q *Query) RemoveValidation(NameAndOrTags string) error {
 // GetFilter returns filter by name
 func (p *Query) GetFilter(name string) (*Filter, error) {
 
-	for _, v := range p.Filters {
+	for _, v := range p.filters {
 		if v.Name == name {
 			return v, nil
 		}
@@ -256,14 +258,14 @@ type Replacer map[string]string
 func (p *Query) ReplaceNames(r Replacer) {
 
 	for name, newname := range r {
-		for i, v := range p.Filters {
+		for i, v := range p.filters {
 			if v.Name == name {
-				p.Filters[i].Name = newname
+				p.filters[i].Name = newname
 			}
 		}
-		for i, v := range p.Fields {
+		for i, v := range p.fields {
 			if v == name {
-				p.Fields[i] = newname
+				p.fields[i] = newname
 			}
 		}
 	}
@@ -273,15 +275,15 @@ func (p *Query) ReplaceNames(r Replacer) {
 // Where returns list of filters for WHERE statement
 func (p *Query) Where() string {
 
-	if len(p.Filters) == 0 {
+	if len(p.filters) == 0 {
 		return ""
 	}
 
 	var where string
 	var OR bool = false
 
-	for i := 0; i < len(p.Filters); i++ {
-		filter := p.Filters[i]
+	for i := 0; i < len(p.filters); i++ {
+		filter := p.filters[i]
 
 		prefix := ""
 		suffix := ""
@@ -296,7 +298,7 @@ func (p *Query) Where() string {
 		} else if filter.Or && OR {
 			prefix = " OR "
 			// if last element of next element not OR method
-			if i+1 == len(p.Filters) || (i+1 < len(p.Filters) && !p.Filters[i+1].Or) {
+			if i+1 == len(p.filters) || (i+1 < len(p.filters) && !p.filters[i+1].Or) {
 				suffix = ")"
 				OR = false
 			}
@@ -320,7 +322,7 @@ func (p *Query) Where() string {
 // WhereSQL returns list of filters for WHERE SQL statement
 func (p *Query) WhereSQL() string {
 
-	if len(p.Filters) == 0 {
+	if len(p.filters) == 0 {
 		return ""
 	}
 
@@ -332,12 +334,12 @@ func (p *Query) Args() []interface{} {
 
 	args := make([]interface{}, 0)
 
-	if len(p.Filters) == 0 {
+	if len(p.filters) == 0 {
 		return args
 	}
 
-	for i := 0; i < len(p.Filters); i++ {
-		filter := p.Filters[i]
+	for i := 0; i < len(p.filters); i++ {
+		filter := p.filters[i]
 
 		if a, err := filter.Args(); err == nil {
 			args = append(args, a...)
@@ -411,11 +413,11 @@ func NewParse(q url.Values, v Validations) (*Query, error) {
 func (q *Query) Parse() error {
 
 	// clean the filters slice
-	if len(q.Filters) > 0 {
-		for i, _ := range q.Filters {
-			q.Filters[i] = nil
+	if len(q.filters) > 0 {
+		for i, _ := range q.filters {
+			q.filters[i] = nil
 		}
-		q.Filters = nil
+		q.filters = nil
 	}
 
 	// construct a slice with required names of filters
@@ -440,10 +442,14 @@ func (q *Query) Parse() error {
 			// name = arg1
 			// name = arg2
 
-			up := strings.ToLower(name)
-			switch up {
-			case "fields", "offset", "limit", "sort":
-				requiredNames = append(requiredNames, up)
+			low := strings.ToLower(name)
+			switch low {
+			case "fields", "fields[in]",
+				"offset", "offset[in]",
+				"limit", "limit[in]",
+				"sort", "sort[in]":
+				low = strings.ReplaceAll(low, "[in]", "")
+				requiredNames = append(requiredNames, low)
 			default:
 				requiredNames = append(requiredNames, name)
 			}
@@ -457,29 +463,33 @@ func (q *Query) Parse() error {
 
 	for key, values := range q.query {
 
-		keyl := strings.ToLower(key)
+		low := strings.ToLower(key)
 
-		switch keyl {
+		switch low {
 		case "fields", "fields[in]":
-			if err := q.parseFields(values, q.validations[keyl]); err != nil {
+			low = strings.ReplaceAll(low, "[in]", "")
+			if err := q.parseFields(values, q.validations[low]); err != nil {
 				return errors.Wrap(err, key)
 			}
-			requiredNames = removeFromSlice(requiredNames, "fields")
+			requiredNames = removeFromSlice(requiredNames, low)
 		case "offset", "offset[in]":
-			if err := q.parseOffset(values, q.validations[keyl]); err != nil {
+			low = strings.ReplaceAll(low, "[in]", "")
+			if err := q.parseOffset(values, q.validations[low]); err != nil {
 				return errors.Wrap(err, key)
 			}
-			requiredNames = removeFromSlice(requiredNames, "offset")
+			requiredNames = removeFromSlice(requiredNames, low)
 		case "limit", "limit[in]":
-			if err := q.parseLimit(values, q.validations[keyl]); err != nil {
+			low = strings.ReplaceAll(low, "[in]", "")
+			if err := q.parseLimit(values, q.validations[low]); err != nil {
 				return errors.Wrap(err, key)
 			}
-			requiredNames = removeFromSlice(requiredNames, "limit")
+			requiredNames = removeFromSlice(requiredNames, low)
 		case "sort", "sort[in]":
-			if err := q.parseSort(values, q.validations[keyl]); err != nil {
+			low = strings.ReplaceAll(low, "[in]", "")
+			if err := q.parseSort(values, q.validations[low]); err != nil {
 				return errors.Wrap(err, key)
 			}
-			requiredNames = removeFromSlice(requiredNames, "sort")
+			requiredNames = removeFromSlice(requiredNames, low)
 		default:
 			if len(values) == 1 {
 
@@ -516,7 +526,7 @@ func (q *Query) Parse() error {
 						// set OR
 						filter.Or = true
 
-						q.Filters = append(q.Filters, filter)
+						q.filters = append(q.filters, filter)
 					}
 				} else { // Single filter
 					//fmt.Println("key:", key, "value:", value)
@@ -532,7 +542,7 @@ func (q *Query) Parse() error {
 						return errors.Wrap(err, key)
 					}
 
-					q.Filters = append(q.Filters, filter)
+					q.filters = append(q.filters, filter)
 				}
 
 			} else {
@@ -602,7 +612,7 @@ func (q *Query) parseSort(value []string, validate ValidationFunc) error {
 		})
 	}
 
-	q.Sorts = sort
+	q.sorts = sort
 
 	return nil
 }
@@ -631,7 +641,7 @@ func (q *Query) parseFields(value []string, validate ValidationFunc) error {
 		}
 	}
 
-	q.Fields = list
+	q.fields = list
 	return nil
 }
 
@@ -657,13 +667,12 @@ func (p *Query) parseOffset(value []string, validate ValidationFunc) error {
 	}
 
 	if validate != nil {
-		fmt.Println("validate offset")
 		if err := validate(i); err != nil {
 			return err
 		}
 	}
 
-	p.Offset = i
+	p.offset = i
 
 	return nil
 }
@@ -690,12 +699,12 @@ func (p *Query) parseLimit(value []string, validate ValidationFunc) error {
 	}
 
 	if validate != nil {
-		if err := validate(p.Limit); err != nil {
+		if err := validate(i); err != nil {
 			return err
 		}
 	}
 
-	p.Limit = i
+	p.limit = i
 
 	return nil
 }

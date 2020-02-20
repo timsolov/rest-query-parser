@@ -284,7 +284,7 @@ func TestReplaceFiltersNames(t *testing.T) {
 		"one": "two",
 	})
 
-	assert.Len(t, q.Filters, 2)
+	assert.Len(t, q.filters, 2)
 	assert.True(t, q.HaveFilter("two"))
 
 	q.ReplaceNames(Replacer{
@@ -292,7 +292,7 @@ func TestReplaceFiltersNames(t *testing.T) {
 		"nonpresent": "hello",
 	})
 
-	assert.Len(t, q.Filters, 2)
+	assert.Len(t, q.filters, 2)
 	assert.True(t, q.HaveFilter("two"))
 	assert.True(t, q.HaveFilter("r.another"))
 	assert.False(t, q.HaveFilter("one"))
@@ -332,14 +332,14 @@ func TestAddField(t *testing.T) {
 	q := New()
 	q.SetUrlString("?test=ok")
 	q.AddField("test")
-	assert.Len(t, q.Fields, 1)
+	assert.Len(t, q.fields, 1)
 	assert.True(t, q.HaveField("test"))
 	assert.Equal(t, "test", q.FieldsSQL())
 }
 
 func TestAddFilter(t *testing.T) {
 	q := New().AddFilter("test", EQ, "ok")
-	assert.Len(t, q.Filters, 1)
+	assert.Len(t, q.filters, 1)
 	assert.True(t, q.HaveFilter("test"))
 	assert.Equal(t, "test = ?", q.Where())
 }

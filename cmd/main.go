@@ -23,7 +23,7 @@ func main() {
 	// Field is enumerated in the Filter "fields" field which lib must put into SELECT statement.
 
 	url, _ := url.Parse("http://localhost/?sort=+name,-id&limit=10&id=1&i[eq]=5&s[eq]=one&email[like]=*tim*|name[like]=*tim*")
-	q, _ := rqp.NewParse(url.Query(), rqp.Validations{
+	q, err := rqp.NewParse(url.Query(), rqp.Validations{
 		// FORMAT: [field name] : [ ValidationFunc | nil ]
 
 		// validation will work if field will be provided in the Query part of the URL
@@ -46,6 +46,10 @@ func main() {
 		"email": nil,
 		"name":  nil,
 	})
+
+	if err != nil {
+		panic(err)
+	}
 
 	fmt.Println(q.SQL("table")) // SELECT * FROM table WHERE id = ? AND i = ? AND s = ? AND (email LIKE ? OR name LIKE ?) ORDER BY name, id DESC LIMIT 10
 	fmt.Println(q.Where())      // id = ? AND i = ? AND s = ? AND (email LIKE ? OR name LIKE ?)
