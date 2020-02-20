@@ -43,14 +43,21 @@ func TestOffset(t *testing.T) {
 		err      error
 	}{
 		{url: "?", expected: ""},
-		{url: "?offset=", expected: ""},
-		{url: "?offset=10", expected: " OFFSET 10"},
+		{url: "?offset=", expected: "", err: ErrBadFormat},
+		{url: "?offset=-1", expected: "", err: ErrBadFormat},
+		{url: "?offset=num", expected: "", err: ErrBadFormat},
+		{url: "?offset=11", expected: "", err: ErrNotInScope},
+		{url: "?offset[in]=10", expected: " OFFSET 10"},
 	}
 	for _, c := range cases {
+		//t.Log(c)
 		URL, err := url.Parse(c.url)
 		assert.NoError(t, err)
-		q, err := NewParse(URL.Query(), nil)
-		assert.Equal(t, c.err, err)
+		q := New().
+			SetUrlQuery(URL.Query()).
+			AddValidation("offset", Max(10))
+		err = q.Parse()
+		assert.Equal(t, c.err, errors.Cause(err))
 		assert.Equal(t, c.expected, q.OffsetSQL())
 	}
 }
@@ -63,14 +70,17 @@ func TestLimit(t *testing.T) {
 		err      error
 	}{
 		{url: "?", expected: ""},
-		{url: "?limit=", expected: ""},
+		{url: "?limit=", expected: "", err: ErrBadFormat},
 		{url: "?limit=10", expected: " LIMIT 10"},
 	}
 	for _, c := range cases {
 		URL, err := url.Parse(c.url)
 		assert.NoError(t, err)
-		q, err := NewParse(URL.Query(), nil)
-		assert.Equal(t, c.err, err)
+		q := New().
+			SetUrlQuery(URL.Query()).
+			AddValidation("limit", Max(10))
+		err = q.Parse()
+		assert.Equal(t, c.err, errors.Cause(err))
 		assert.Equal(t, c.expected, q.LimitSQL())
 	}
 }
@@ -332,4 +342,22 @@ func TestAddFilter(t *testing.T) {
 	assert.Len(t, q.Filters, 1)
 	assert.True(t, q.HaveFilter("test"))
 	assert.Equal(t, "test = ?", q.Where())
+}
+
+func Test_ignoreUnknown(t *testing.T) {
+	q := New()
+	q.SetUrlString("?id=10")
+	q.IgnoreUnknownFilters(true)
+	assert.NoError(t, q.Parse())
+
+	q.IgnoreUnknownFilters(false)
+	assert.Equal(t, ErrFilterNotFound, errors.Cause(q.Parse()))
+
+	q.SetUrlString("?id[gt]=10|id[lt]=10")
+	q.IgnoreUnknownFilters(true)
+	assert.NoError(t, q.Parse())
+
+	q.IgnoreUnknownFilters(false)
+	assert.Equal(t, ErrFilterNotFound, errors.Cause(q.Parse()))
+
 }

@@ -457,28 +457,30 @@ func (q *Query) Parse() error {
 
 	for key, values := range q.query {
 
-		if strings.ToLower(key) == "fields" {
-			if err := q.parseFields(values, q.validations[key]); err != nil {
+		keyl := strings.ToLower(key)
+
+		switch keyl {
+		case "fields", "fields[in]":
+			if err := q.parseFields(values, q.validations[keyl]); err != nil {
 				return errors.Wrap(err, key)
 			}
 			requiredNames = removeFromSlice(requiredNames, "fields")
-		} else if strings.ToLower(key) == "offset" {
-			if err := q.parseOffset(values, q.validations[key]); err != nil {
+		case "offset", "offset[in]":
+			if err := q.parseOffset(values, q.validations[keyl]); err != nil {
 				return errors.Wrap(err, key)
 			}
 			requiredNames = removeFromSlice(requiredNames, "offset")
-		} else if strings.ToLower(key) == "limit" {
-			if err := q.parseLimit(values, q.validations[key]); err != nil {
+		case "limit", "limit[in]":
+			if err := q.parseLimit(values, q.validations[keyl]); err != nil {
 				return errors.Wrap(err, key)
 			}
 			requiredNames = removeFromSlice(requiredNames, "limit")
-		} else if strings.ToLower(key) == "sort" {
-			if err := q.parseSort(values, q.validations[key]); err != nil {
+		case "sort", "sort[in]":
+			if err := q.parseSort(values, q.validations[keyl]); err != nil {
 				return errors.Wrap(err, key)
 			}
 			requiredNames = removeFromSlice(requiredNames, "sort")
-		} else {
-
+		default:
 			if len(values) == 1 {
 
 				//fmt.Println("new filter:")
@@ -536,8 +538,8 @@ func (q *Query) Parse() error {
 			} else {
 				return errors.Wrap(ErrBadFormat, key)
 			}
-
 		}
+
 	}
 
 	// check required filters
@@ -640,21 +642,28 @@ func (p *Query) parseOffset(value []string, validate ValidationFunc) error {
 	}
 
 	if len(value[0]) == 0 {
-		return nil
+		return ErrBadFormat
 	}
 
 	var err error
 
-	p.Offset, err = strconv.Atoi(value[0])
+	i, err := strconv.Atoi(value[0])
 	if err != nil {
-		return err
+		return ErrBadFormat
+	}
+
+	if i < 0 {
+		return ErrBadFormat
 	}
 
 	if validate != nil {
-		if err := validate(p.Offset); err != nil {
+		fmt.Println("validate offset")
+		if err := validate(i); err != nil {
 			return err
 		}
 	}
+
+	p.Offset = i
 
 	return nil
 }
@@ -666,14 +675,18 @@ func (p *Query) parseLimit(value []string, validate ValidationFunc) error {
 	}
 
 	if len(value[0]) == 0 {
-		return nil
+		return ErrBadFormat
 	}
 
 	var err error
 
-	p.Limit, err = strconv.Atoi(value[0])
+	i, err := strconv.Atoi(value[0])
 	if err != nil {
-		return err
+		return ErrBadFormat
+	}
+
+	if i <= 0 {
+		return ErrBadFormat
 	}
 
 	if validate != nil {
@@ -681,6 +694,8 @@ func (p *Query) parseLimit(value []string, validate ValidationFunc) error {
 			return err
 		}
 	}
+
+	p.Limit = i
 
 	return nil
 }

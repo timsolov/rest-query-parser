@@ -35,16 +35,13 @@ func main() {
 		"limit:required": rqp.MinMax(10, 100),  // limit must present in the Query part and must be between 10 and 100 (default: Min(1))
 		"sort":           rqp.In("id", "name"), // sort could be or not in the query but if it is present it must be equal to "in" or "name"
 
-		"s": rqp.In( // filter: s - string and equal
-			"one",
-			"two",
-		),
-		"id:int": nil, // filter: id is integer without additional validation
-		"i:int": func(value interface{}) error { // filter: custom func for filtering
-			if value.(int) > 10 {
-				return errors.New("i: must be lower then 10")
+		"s":      rqp.In("one", "two"), // filter: s - string and equal
+		"id:int": nil,                  // filter: id is integer without additional validation
+		"i:int": func(value interface{}) error { // filter: custom func for validating
+			if value.(int) > 1 && value.(int) < 10 {
+				return nil
 			}
-			return nil
+			return errors.New("i: must be greater then 1 and lower then 10")
 		},
 		"email": nil,
 		"name":  nil,
