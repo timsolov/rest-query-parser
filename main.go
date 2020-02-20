@@ -663,7 +663,7 @@ func (p *Query) parseOffset(value []string, validate ValidationFunc) error {
 	}
 
 	if i < 0 {
-		return ErrBadFormat
+		return errors.Wrapf(ErrNotInScope, "%d", i)
 	}
 
 	if validate != nil {
@@ -695,7 +695,7 @@ func (p *Query) parseLimit(value []string, validate ValidationFunc) error {
 	}
 
 	if i <= 0 {
-		return ErrBadFormat
+		return errors.Wrapf(ErrNotInScope, "%d", i)
 	}
 
 	if validate != nil {

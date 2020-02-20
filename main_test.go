@@ -44,7 +44,7 @@ func TestOffset(t *testing.T) {
 	}{
 		{url: "?", expected: ""},
 		{url: "?offset=", expected: "", err: ErrBadFormat},
-		{url: "?offset=-1", expected: "", err: ErrBadFormat},
+		{url: "?offset=-1", expected: "", err: ErrNotInScope},
 		{url: "?offset=num", expected: "", err: ErrBadFormat},
 		{url: "?offset=11", expected: "", err: ErrNotInScope},
 		{url: "?offset[in]=10", expected: " OFFSET 10"},
