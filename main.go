@@ -268,6 +268,11 @@ func (p *Query) ReplaceNames(r Replacer) {
 				p.Fields[i] = newname
 			}
 		}
+		for i, v := range p.Sorts {
+			if v.By == name {
+				p.Sorts[i].By = newname
+			}
+		}
 	}
 
 }
