@@ -11,6 +11,7 @@ func NewError(msg string) Error {
 var (
 	ErrRequired           = NewError("required")
 	ErrBadFormat          = NewError("bad format")
+	ErrEmptyValue         = NewError("empty value")
 	ErrUnknownMethod      = NewError("unknown method")
 	ErrNotInScope         = NewError("not in scope")
 	ErrSimilarNames       = NewError("similar names of keys are not allowed")

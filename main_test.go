@@ -134,8 +134,9 @@ func TestWhere(t *testing.T) {
 		ignore    bool
 	}{
 		{url: "?", expected: ""},
-		{url: "?id", expected: "", err: "id: bad format"},
-		{url: "?id=", expected: "", err: "id: bad format"},
+		{url: "?id", expected: "", err: "id: empty value"},
+		{url: "?id=", expected: "", err: "id: empty value"},
+		{url: "?u=", expected: "", err: "u: empty value"},
 		{url: "?id=1.2", expected: "", err: "id: bad format"},
 		{url: "?id[in]=1.2", expected: "", err: "id[in]: bad format"},
 		{url: "?id[in]=1.2,1.2", expected: "", err: "id[in]: bad format"},

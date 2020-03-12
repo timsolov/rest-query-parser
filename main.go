@@ -500,7 +500,10 @@ func (q *Query) Parse() error {
 
 				//fmt.Println("new filter:")
 
-				value := values[0]
+				value := strings.TrimSpace(values[0])
+				if len(value) == 0 {
+					return errors.Wrap(ErrEmptyValue, key)
+				}
 
 				if strings.Contains(value, q.delimiterOR) { // OR multiple filter
 					parts := strings.Split(value, q.delimiterOR)
