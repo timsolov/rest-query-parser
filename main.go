@@ -518,6 +518,12 @@ func (q *Query) Parse() error {
 						}
 
 						//fmt.Println("key:", key, "value:", v)
+
+						v := strings.TrimSpace(v)
+						if len(v) == 0 {
+							return errors.Wrap(ErrEmptyValue, key)
+						}
+
 						filter, err := newFilter(key, v, q.delimiterIN, q.validations)
 
 						if err != nil {

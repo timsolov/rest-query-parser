@@ -225,6 +225,8 @@ func TestWhere2(t *testing.T) {
 	assert.NoError(t, q.SetUrlString("?id[eq]=10&s[like]=super|u[like]=*best*&id[gt]=1"))
 	assert.NoError(t, q.Parse())
 	//t.Log(q.SQL("tab"), q.Args())
+	assert.NoError(t, q.SetUrlString("?id[eq]=10&s[like]=super|u[like]=&id[gt]=1"))
+	assert.EqualError(t, q.Parse(), "u[like]: empty value")
 }
 
 func TestArgs(t *testing.T) {
@@ -318,10 +320,14 @@ func TestRequiredFilter(t *testing.T) {
 	assert.EqualError(t, err, "limit: required")
 
 	// required and present
-	URL, err = url.Parse("?limit=10&one[eq]=1")
+	URL, err = url.Parse("?limit=10&one[eq]=1&count=4")
 	assert.NoError(t, err)
 
-	qp, err = NewParse(URL.Query(), Validations{"limit:required": nil, "one:int": nil})
+	qp, err = NewParse(URL.Query(), Validations{
+		"limit:required":     nil,
+		"one:int":            nil,
+		"count:int:required": nil,
+	})
 	assert.NoError(t, err)
 	_, present := qp.validations["limit:required"]
 	assert.False(t, present)
