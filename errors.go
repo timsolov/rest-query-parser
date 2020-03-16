@@ -1,11 +1,15 @@
 package rqp
 
-import "errors"
+type Error struct {
+	s string
+}
 
-type Error error
+func (e *Error) Error() string {
+	return e.s
+}
 
-func NewError(msg string) Error {
-	return errors.New(msg)
+func NewError(msg string) *Error {
+	return &Error{msg}
 }
 
 var (
