@@ -60,6 +60,6 @@ func main() {
 	q.Parse()
 
 	fmt.Println(q.SQL("table")) // SELECT id, name FROM table ORDER BY id LIMIT 10
-	fmt.Println(q.FieldsSQL())  // id, name
+	fmt.Println(q.Select())     // id, name
 	fmt.Println(q.Args())       // []
 }

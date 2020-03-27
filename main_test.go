@@ -30,7 +30,7 @@ func TestFields(t *testing.T) {
 		q.AddValidation("fields", In("id", "name"))
 		err = q.Parse()
 		assert.Equal(t, c.err, err)
-		assert.Equal(t, c.expected, q.FieldsSQL())
+		assert.Equal(t, c.expected, q.FieldsString())
 	}
 }
 
@@ -58,7 +58,7 @@ func TestOffset(t *testing.T) {
 			AddValidation("offset", Max(10))
 		err = q.Parse()
 		assert.Equal(t, c.err, errors.Cause(err))
-		assert.Equal(t, c.expected, q.OffsetSQL())
+		assert.Equal(t, c.expected, q.OFFSET())
 	}
 }
 
@@ -81,7 +81,7 @@ func TestLimit(t *testing.T) {
 			AddValidation("limit", Max(10))
 		err = q.Parse()
 		assert.Equal(t, c.err, errors.Cause(err))
-		assert.Equal(t, c.expected, q.LimitSQL())
+		assert.Equal(t, c.expected, q.LIMIT())
 	}
 }
 
@@ -111,7 +111,7 @@ func TestSort(t *testing.T) {
 		assert.NoError(t, err)
 		q, err := NewParse(URL.Query(), Validations{"sort": In("id", "name")})
 		assert.Equal(t, c.err, err)
-		assert.Equal(t, c.expected, q.SortSQL())
+		assert.Equal(t, c.expected, q.ORDER())
 	}
 
 	q := New().SetValidations(Validations{"sort": In("id")})
@@ -190,7 +190,7 @@ func TestWhere(t *testing.T) {
 		if len(c.err) > 0 {
 			assert.EqualError(t, err, c.err)
 		}
-		where := q.WhereSQL()
+		where := q.WHERE()
 		//t.Log(q.SQL("table"), q.Args())
 		if len(c.expected2) > 0 {
 			//t.Log("expected:", c.expected, "or:", c.expected2, "got:", where)
@@ -341,7 +341,7 @@ func TestAddField(t *testing.T) {
 	q.AddField("test")
 	assert.Len(t, q.Fields, 1)
 	assert.True(t, q.HaveField("test"))
-	assert.Equal(t, "test", q.FieldsSQL())
+	assert.Equal(t, "test", q.FieldsString())
 }
 
 func TestAddFilter(t *testing.T) {

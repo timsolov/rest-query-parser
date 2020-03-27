@@ -80,20 +80,38 @@ func (q *Query) SetDelimiterOR(d string) *Query {
 	return q
 }
 
-// Fields returns elements list separated by comma (",") for querying in SELECT statement or a star ("*") if nothing provided
-func (p *Query) FieldsSQL() string {
+// FieldsString returns elements list separated by comma (",") for querying in SELECT statement or a star ("*") if nothing provided
+// return example:
+//   when "fields" empty or not provided: `*`
+//   when "fields=id,email" return example: `id, email`
+func (p *Query) FieldsString() string {
 	if len(p.Fields) == 0 {
 		return "*"
 	}
 	return strings.Join(p.Fields, ", ")
 }
 
-// SelectSQL returns SELECT with fields from Filter "fields" from URL or a star ("*") if nothing provided
-func (q *Query) SelectSQL() string {
+// Select returns elements list separated by comma (",") for querying in SELECT statement or a star ("*") if nothing provided
+// return example:
+//   when "fields" empty or not provided: `*`
+//   when "fields=id,email" return example: `id, email`
+func (p *Query) Select() string {
+	if len(p.Fields) == 0 {
+		return "*"
+	}
+	return strings.Join(p.Fields, ", ")
+}
+
+// SELECT returns word SELECT with fields from Filter "fields" separated by comma (",") from URL-Query
+// or word SELECT with star ("*") if nothing provided
+// return examples:
+//   when "fields" empty or not provided: `SELECT *`
+//   when "fields=id,email" return example: `SELECT id, email`
+func (q *Query) SELECT() string {
 	if len(q.Fields) == 0 {
 		return "*"
 	}
-	return fmt.Sprintf("SELECT %s", q.FieldsSQL())
+	return fmt.Sprintf("SELECT %s", q.FieldsString())
 }
 
 // HaveField returns true if request asks for field
@@ -106,25 +124,28 @@ func (p *Query) AddField(field string) {
 	p.Fields = append(p.Fields, field)
 }
 
-// OffsetSQL returns OFFSET statement
-func (p *Query) OffsetSQL() string {
+// OFFSET returns OFFSET statement
+// return example: `OFFSET 0`
+func (p *Query) OFFSET() string {
 	if p.Offset > 0 {
 		return fmt.Sprintf(" OFFSET %d", p.Offset)
 	}
 	return ""
 }
 
-// LimitSQL returns LIMIT statement
-func (p *Query) LimitSQL() string {
+// LIMIT returns LIMIT statement
+// return example: `LIMIT 100`
+func (p *Query) LIMIT() string {
 	if p.Limit > 0 {
 		return fmt.Sprintf(" LIMIT %d", p.Limit)
 	}
 	return ""
 }
 
-// Sort returns list of elements for ORDER BY statement
+// Order returns list of elements for ORDER BY statement
 // you can use +/- prefix to specify direction of sorting (+ is default)
-func (p *Query) Sort() string {
+// return example: `id DESC, email`
+func (p *Query) Order() string {
 	if len(p.Sorts) == 0 {
 		return ""
 	}
@@ -145,13 +166,14 @@ func (p *Query) Sort() string {
 	return s
 }
 
-// Sort returns ORDER BY statement with list of elements for sorting
+// ORDER returns ORDER BY statement with list of elements for sorting
 // you can use +/- prefix to specify direction of sorting (+ is default)
-func (q *Query) SortSQL() string {
+// return example: `ORDER BY id DESC, email`
+func (q *Query) ORDER() string {
 	if len(q.Sorts) == 0 {
 		return ""
 	}
-	return fmt.Sprintf(" ORDER BY %s", q.Sort())
+	return fmt.Sprintf(" ORDER BY %s", q.Order())
 }
 
 // HaveSortBy returns true if request contains some sorting
@@ -278,6 +300,7 @@ func (p *Query) ReplaceNames(r Replacer) {
 }
 
 // Where returns list of filters for WHERE statement
+// return example: `id > 0 AND email LIKE 'some@email.com'`
 func (p *Query) Where() string {
 
 	if len(p.Filters) == 0 {
@@ -324,8 +347,9 @@ func (p *Query) Where() string {
 	return where
 }
 
-// WhereSQL returns list of filters for WHERE SQL statement
-func (p *Query) WhereSQL() string {
+// WHERE returns list of filters for WHERE SQL statement with `WHERE` word
+// return example: `WHERE id > 0 AND email LIKE 'some@email.com'`
+func (p *Query) WHERE() string {
 
 	if len(p.Filters) == 0 {
 		return ""
@@ -358,13 +382,13 @@ func (p *Query) Args() []interface{} {
 
 func (p *Query) SQL(table string) string {
 	return fmt.Sprintf(
-		"SELECT %s FROM %s%s%s%s%s",
-		p.FieldsSQL(),
+		"%s FROM %s%s%s%s%s",
+		p.SELECT(),
 		table,
-		p.WhereSQL(),
-		p.SortSQL(),
-		p.LimitSQL(),
-		p.OffsetSQL(),
+		p.WHERE(),
+		p.ORDER(),
+		p.LIMIT(),
+		p.OFFSET(),
 	)
 }
 
