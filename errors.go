@@ -1,5 +1,6 @@
 package rqp
 
+// Error special rqp.Error type
 type Error struct {
 	s string
 }
@@ -8,10 +9,12 @@ func (e *Error) Error() string {
 	return e.s
 }
 
+// NewError constructor for internal errors
 func NewError(msg string) *Error {
 	return &Error{msg}
 }
 
+// Errors list:
 var (
 	ErrRequired           = NewError("required")
 	ErrBadFormat          = NewError("bad format")

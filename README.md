@@ -1,6 +1,8 @@
 # Query Parser for REST
 Query Parser is a library for easy building dynamic SQL queries to Database. It provides a simple API for web-applications which needs to do some filtering throught GET queries. It is a connector between the HTTP handler and the DB engine, and manages validations and translations for user inputs.
 
+[![GoDoc](https://godoc.org/github.com/timsolov/rest-query-parser?status.png)](https://godoc.org/github.com/timsolov/rest-query-parser)
+
 ## Installation
     go get -u github.com/timsolov/rest-query-parser
 
@@ -50,9 +52,9 @@ See cmd/main.go and tests for more examples.
 ```
 
 ## Top level fields:
-* `fields` - fields for SELECT clause separated by comma (",") Eg. `&fields=id,name`. If nothing provided use "\*" by default. Attention! If you want to use this filter you have to defaine validation func for it. Use `rqp.In()` func for limit fields for your query.
+* `fields` - fields for SELECT clause separated by comma (",") Eg. `&fields=id,name`. If nothing provided will use "\*" by default. Attention! If you want to use this filter you have to define validation func for it. Use `rqp.In("id", "name")` func for limit fields for your query.
 * `sort` - sorting fields list separated by comma (","). Must be validated too. Could include prefix +/- which means ASC/DESC sorting. Eg. `&sort=+id,-name` will print `ORDER BY id, name  DESC`. You have to filter fields in this parameter by adding `rqp.In("id", "name")`.
-* `limit` - is limit for LIMIT clause. Should be greater then 0 by default. Definition of the validation for `limit` is not required.
+* `limit` - is limit for LIMIT clause. Should be greater then 0 by default. Definition of the validation for `limit` is not required. But you may use `rqp.Max(100)` to limit top threshold.
 * `offset` - is offset for OFFSET clause. Should be greater then or equal to 0 by default. Definition of the validation for `offset` is not required.
 
 ## Validation modificators:
@@ -61,7 +63,7 @@ See cmd/main.go and tests for more examples.
 * `:bool` - parameter must be convertable to bool type. Raise error if not.
 
 ## Supported types
-- `strings` - the default type for all provided filters if not specified another. Could be compared by `eq, ne, like, ilkie, in` methods.
+- `string` - the default type for all provided filters if not specified another. Could be compared by `eq, ne, like, ilike, in` methods.
 - `int` - integer type. Must be specified with tag ":int". Could be compared by `eq, ne, gt, lt, gte, lte, in` methods.
 - `bool` - boolean type. Must be specified with tag ":bool". Could be compared by `eq` method.
 
