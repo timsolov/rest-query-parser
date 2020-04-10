@@ -188,6 +188,15 @@ func (p *Query) HaveSortBy(by string) bool {
 	return false
 }
 
+// AddSortBy adds an order rule to Query
+func (q *Query) AddSortBy(by string, desc bool) *Query {
+	q.Sorts = append(q.Sorts, Sort{
+		By:   by,
+		Desc: desc,
+	})
+	return q
+}
+
 // HaveFilter returns true if request contains some filter
 func (p *Query) HaveFilter(name string) bool {
 
