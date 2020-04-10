@@ -142,7 +142,7 @@ func (f *Filter) parseKey(key string) error {
 
 			if epos-spos > 0 {
 				f.Method = Method(strings.ToUpper(string(key[spos:epos])))
-				if _, ok := TranslateMethods[f.Method]; !ok {
+				if _, ok := translateMethods[f.Method]; !ok {
 					return ErrUnknownMethod
 				}
 			}
@@ -192,16 +192,16 @@ func (f *Filter) Where() (string, error) {
 
 	switch f.Method {
 	case EQ, NE, GT, LT, GTE, LTE, LIKE, ILIKE:
-		exp = fmt.Sprintf("%s %s ?", f.Name, TranslateMethods[f.Method])
+		exp = fmt.Sprintf("%s %s ?", f.Name, translateMethods[f.Method])
 		return exp, nil
 	case NOT:
 		if f.Value == NULL {
-			exp = fmt.Sprintf("%s %s NULL", f.Name, TranslateMethods[f.Method])
+			exp = fmt.Sprintf("%s %s NULL", f.Name, translateMethods[f.Method])
 			return exp, nil
 		}
 		return exp, ErrUnknownMethod
 	case IN:
-		exp = fmt.Sprintf("%s %s (?)", f.Name, TranslateMethods[f.Method])
+		exp = fmt.Sprintf("%s %s (?)", f.Name, translateMethods[f.Method])
 		exp, _, _ = in(exp, f.Value)
 		return exp, nil
 	default:

@@ -1,6 +1,8 @@
 # Query Parser for REST
 Query Parser is a library for easy building dynamic SQL queries to Database. It provides a simple API for web-applications which needs to do some filtering throught GET queries. It is a connector between the HTTP handler and the DB engine, and manages validations and translations for user inputs.
 
+[![GoDoc](https://godoc.org/github.com/timsolov/rest-query-parser?status.png)](https://godoc.org/github.com/timsolov/rest-query-parser)
+
 ## Installation
     go get -u github.com/timsolov/rest-query-parser
 
