@@ -1,0 +1,19 @@
+language: go
+sudo: false
+go:
+- 1.13.x
+env:
+- GO111MODULE=off
+go_import_path: github.com/timsolov/rest-query-parser
+install:
+- go get -t -v ./...
+- go get -u honnef.co/go/tools/cmd/staticcheck
+- go get -u github.com/client9/misspell/cmd/misspell
+before_script:
+- $(exit $(go fmt ./... | wc -l))
+- go vet ./...
+- find . -type f -name "*.go" | grep -v "/pb/" | xargs misspell -error -locale US
+- staticcheck ./...
+script:
+- go test -i -v ./...
+- go test -v -race ./...
