@@ -24,13 +24,16 @@ func TestFields(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		URL, err := url.Parse(c.url)
-		assert.NoError(t, err)
-		q, err := NewParse(URL.Query(), nil)
-		q.AddValidation("fields", In("id", "name"))
-		err = q.Parse()
-		assert.Equal(t, c.err, err)
-		assert.Equal(t, c.expected, q.FieldsString())
+		t.Run(c.url, func(t *testing.T) {
+			URL, err := url.Parse(c.url)
+			assert.NoError(t, err)
+			q := NewQV(URL.Query(), nil)
+			assert.NoError(t, err)
+			q.AddValidation("fields", In("id", "name"))
+			err = q.Parse()
+			assert.Equal(t, c.err, err)
+			assert.Equal(t, c.expected, q.FieldsString())
+		})
 	}
 }
 
@@ -83,13 +86,6 @@ func TestLimit(t *testing.T) {
 		assert.Equal(t, c.err, errors.Cause(err))
 		assert.Equal(t, c.expected, q.LIMIT())
 	}
-}
-
-func ParseURL(t *testing.T, u string) url.Values {
-	t.Helper()
-	URL, err := url.Parse(u)
-	assert.NoError(t, err)
-	return URL.Query()
 }
 
 func TestSort(t *testing.T) {
@@ -316,14 +312,14 @@ func TestRequiredFilter(t *testing.T) {
 	URL, err := url.Parse("?")
 	assert.NoError(t, err)
 
-	qp, err := NewParse(URL.Query(), Validations{"limit:required": nil})
+	_, err = NewParse(URL.Query(), Validations{"limit:required": nil})
 	assert.EqualError(t, err, "limit: required")
 
 	// required and present
 	URL, err = url.Parse("?limit=10&one[eq]=1&count=4")
 	assert.NoError(t, err)
 
-	qp, err = NewParse(URL.Query(), Validations{
+	qp, err := NewParse(URL.Query(), Validations{
 		"limit:required":     nil,
 		"one:int":            nil,
 		"count:int:required": nil,

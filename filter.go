@@ -36,7 +36,7 @@ func detectValidation(name string, validations Validations) (ValidationFunc, boo
 // detectType
 func detectType(name string, validations Validations) string {
 
-	for k, _ := range validations {
+	for k := range validations {
 		if strings.Contains(k, ":") {
 			split := strings.Split(k, ":")
 			if split[0] == name {
