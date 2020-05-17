@@ -220,6 +220,7 @@ func (f *Filter) Args() ([]interface{}, error) {
 		return args, nil
 	case NOT:
 		if f.Value == NULL {
+			args = append(args, f.Value)
 			return args, nil
 		}
 		return nil, ErrUnknownMethod
