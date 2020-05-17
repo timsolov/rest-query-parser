@@ -11,16 +11,21 @@ import (
 
 func TestFields(t *testing.T) {
 
+	// mockValidation := func(value interface{}) error { return nil }
+	validate := In("id", "name")
+
 	// Fields:
 	cases := []struct {
 		url      string
 		expected string
+		v        ValidationFunc
 		err      error
 	}{
-		{url: "?", expected: "*", err: nil},
-		{url: "?fields=", expected: "*", err: nil},
-		{url: "?fields=id", expected: "id", err: nil},
-		{url: "?fields=id,name", expected: "id, name", err: nil},
+		{url: "?", expected: "*", v: validate, err: nil},
+		{url: "?fields=", expected: "*", v: validate, err: nil},
+		{url: "?fields=id", expected: "id", v: validate, err: nil},
+		{url: "?fields=id,name", expected: "id, name", v: validate, err: nil},
+		{"?fields=", "*", nil, ErrValidationNotFound},
 	}
 
 	for _, c := range cases {
@@ -29,10 +34,14 @@ func TestFields(t *testing.T) {
 			assert.NoError(t, err)
 			q := NewQV(URL.Query(), nil)
 			assert.NoError(t, err)
-			q.AddValidation("fields", In("id", "name"))
+			q.AddValidation("fields", c.v)
 			err = q.Parse()
-			assert.Equal(t, c.err, err)
-			assert.Equal(t, c.expected, q.FieldsString())
+			if c.err != nil {
+				assert.Equal(t, c.expected, q.FieldsString())
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, c.err, errors.Cause(err))
+			}
 		})
 	}
 }
@@ -74,17 +83,24 @@ func TestLimit(t *testing.T) {
 	}{
 		{url: "?", expected: ""},
 		{url: "?limit=", expected: "", err: ErrBadFormat},
+		{url: "?limit=1,2", expected: "", err: ErrBadFormat},
+		{url: "?limit=11", expected: "", err: ErrNotInScope},
+		{url: "?limit=-1", expected: "", err: ErrNotInScope},
+		{url: "?limit=1", expected: "", err: ErrNotInScope},
+		{url: "?limit=q", expected: "", err: ErrBadFormat},
 		{url: "?limit=10", expected: " LIMIT 10"},
 	}
 	for _, c := range cases {
-		URL, err := url.Parse(c.url)
-		assert.NoError(t, err)
-		q := New().
-			SetUrlQuery(URL.Query()).
-			AddValidation("limit", Max(10))
-		err = q.Parse()
-		assert.Equal(t, c.err, errors.Cause(err))
-		assert.Equal(t, c.expected, q.LIMIT())
+		t.Run(c.url, func(t *testing.T) {
+			URL, err := url.Parse(c.url)
+			assert.NoError(t, err)
+			q := New().
+				SetUrlQuery(URL.Query()).
+				AddValidation("limit", Multi(Min(2), Max(10)))
+			err = q.Parse()
+			assert.Equal(t, c.err, errors.Cause(err))
+			assert.Equal(t, c.expected, q.LIMIT())
+		})
 	}
 }
 
@@ -103,21 +119,29 @@ func TestSort(t *testing.T) {
 		{url: "?sort=id,-name", expected: " ORDER BY id, name DESC"},
 	}
 	for _, c := range cases {
-		URL, err := url.Parse(c.url)
-		assert.NoError(t, err)
-		q, err := NewParse(URL.Query(), Validations{"sort": In("id", "name")})
-		assert.Equal(t, c.err, err)
-		assert.Equal(t, c.expected, q.ORDER())
+		t.Run(c.url, func(t *testing.T) {
+			URL, err := url.Parse(c.url)
+			assert.NoError(t, err)
+			q, err := NewParse(URL.Query(), Validations{"sort": In("id", "name")})
+			assert.Equal(t, c.err, err)
+			assert.Equal(t, c.expected, q.ORDER())
+		})
 	}
 
 	q := New().SetValidations(Validations{"sort": In("id")})
 	err := q.SetUrlString("://")
 	assert.Error(t, err)
+
 	err = q.SetUrlString("?sort=id")
 	assert.NoError(t, err)
+
 	err = q.Parse()
 	assert.NoError(t, err)
 	assert.True(t, q.HaveSortBy("id"))
+
+	// Test AddSortBy
+	q.AddSortBy("email", true)
+	assert.True(t, q.HaveSortBy("email"))
 }
 
 func TestWhere(t *testing.T) {
@@ -157,47 +181,53 @@ func TestWhere(t *testing.T) {
 		{url: "?id[eq]=1&id[eq]=4", err: "id[eq]: bad format"},
 		{url: "?id[gte]=1&id[lte]=4", expected: " WHERE id >= ? AND id <= ?", expected2: " WHERE id <= ? AND id >= ?"},
 		{url: "?id[gte]=1|id[lte]=4", expected: " WHERE (id >= ? OR id <= ?)", expected2: " WHERE (id <= ? OR id >= ?)"},
+		{url: "?u[not]=NULL", expected: " WHERE u IS NOT NULL"},
+		// bool:
+		{url: "?b=true", expected: " WHERE b = ?"},
+		{url: "?b=true1", err: "b: bad format"},
+		{url: "?b[not]=true", err: "b[not]: method are not allowed"},
+		{url: "?b[eq]=true,false", err: "b[eq]: method are not allowed"},
 	}
 	for _, c := range cases {
-		//t.Log(c)
+		t.Run(c.url, func(t *testing.T) {
+			URL, err := url.Parse(c.url)
+			assert.NoError(t, err)
 
-		URL, err := url.Parse(c.url)
-		assert.NoError(t, err)
+			q := NewQV(URL.Query(), Validations{
+				"id:int": func(value interface{}) error {
+					if value.(int) > 10 {
+						return errors.New("can't be greater then 10")
+					}
+					return nil
+				},
+				"s": In(
+					"super",
+					"best",
+				),
+				"u:string": nil,
+				"b:bool":   nil,
+				"custom": func(value interface{}) error {
+					return nil
+				},
+			}).IgnoreUnknownFilters(c.ignore)
 
-		q := NewQV(URL.Query(), Validations{
-			"id:int": func(value interface{}) error {
-				if value.(int) > 10 {
-					return errors.New("can't be greater then 10")
-				}
-				return nil
-			},
-			"s": In(
-				"super",
-				"best",
-			),
-			"u:string": nil,
-			"custom": func(value interface{}) error {
-				return nil
-			},
-		}).IgnoreUnknownFilters(c.ignore)
+			err = q.Parse()
 
-		err = q.Parse()
-
-		if len(c.err) > 0 {
-			assert.EqualError(t, err, c.err)
-		}
-		where := q.WHERE()
-		//t.Log(q.SQL("table"), q.Args())
-		if len(c.expected2) > 0 {
-			//t.Log("expected:", c.expected, "or:", c.expected2, "got:", where)
-			assert.True(t, c.expected == where || c.expected2 == where)
-		} else {
-			//t.Log("expected:", c.expected, "got:", where)
-			assert.True(t, c.expected == where)
-		}
-
+			if len(c.err) > 0 {
+				assert.EqualError(t, err, c.err)
+			} else {
+				assert.NoError(t, err)
+			}
+			where := q.WHERE()
+			//t.Log(q.SQL("table"), q.Args())
+			if len(c.expected2) > 0 {
+				//t.Log("expected:", c.expected, "or:", c.expected2, "got:", where)
+				assert.True(t, c.expected == where || c.expected2 == where)
+			} else {
+				assert.Equal(t, c.expected, where)
+			}
+		})
 	}
-
 }
 
 func TestWhere2(t *testing.T) {
@@ -230,7 +260,7 @@ func TestArgs(t *testing.T) {
 	q.SetDelimiterIN("!")
 	assert.Len(t, q.Args(), 0)
 	// setup url
-	URL, err := url.Parse("?fields=id!status&sort=id!+id!-id&offset=10&one=123&two=test&three[like]=*www*&three[in]=www1!www2")
+	URL, err := url.Parse("?fields=id!status&sort=id!+id!-id&offset=10&one=123&two=test&three[like]=*www*&three[in]=www1!www2&four[not]=NULL")
 	assert.NoError(t, err)
 
 	err = q.SetUrlQuery(URL.Query()).SetValidations(Validations{
@@ -239,15 +269,17 @@ func TestArgs(t *testing.T) {
 		"one:int": nil,
 		"two":     nil,
 		"three":   nil,
+		"four":    nil,
 	}).Parse()
 	assert.NoError(t, err)
 
-	assert.Len(t, q.Args(), 5)
+	assert.Len(t, q.Args(), 6)
 	assert.Contains(t, q.Args(), 123)
 	assert.Contains(t, q.Args(), "test")
 	assert.Contains(t, q.Args(), "%www%")
 	assert.Contains(t, q.Args(), "www1")
 	assert.Contains(t, q.Args(), "www2")
+	assert.Contains(t, q.Args(), "NULL")
 }
 
 func TestSQL(t *testing.T) {
@@ -270,11 +302,14 @@ func TestSQL(t *testing.T) {
 }
 
 func TestReplaceFiltersNames(t *testing.T) {
-	URL, err := url.Parse("?one=123&another=yes")
+	URL, err := url.Parse("?fields=one&sort=one&one=123&another=yes")
 	assert.NoError(t, err)
 
 	q, err := NewParse(URL.Query(), Validations{
-		"one": nil, "another": nil,
+		"fields":  In("one", "another", "two"),
+		"sort":    In("one", "another", "two"),
+		"one":     nil,
+		"another": nil,
 	})
 	assert.NoError(t, err)
 	assert.True(t, q.HaveFilter("one"))
@@ -363,4 +398,19 @@ func Test_ignoreUnknown(t *testing.T) {
 	q.IgnoreUnknownFilters(false)
 	assert.Equal(t, ErrFilterNotFound, errors.Cause(q.Parse()))
 
+}
+
+func TestRemoveValidation(t *testing.T) {
+	q := New()
+
+	// validation not found case
+	assert.EqualError(t, q.RemoveValidation("fields"), ErrValidationNotFound.Error())
+
+	// remove plain validation
+	q.AddValidation("fields", In("id"))
+	assert.NoError(t, q.RemoveValidation("fields"))
+
+	// remove typed validation
+	q.AddValidation("name:string", In("id"))
+	assert.NoError(t, q.RemoveValidation("name"))
 }

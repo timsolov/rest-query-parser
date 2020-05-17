@@ -54,3 +54,12 @@ func TestMinMax(t *testing.T) {
 	assert.EqualError(t, err, "one: not in scope")
 
 }
+
+func TestNotEmpty(t *testing.T) {
+	// good case
+	err := NotEmpty()("test")
+	assert.NoError(t, err)
+	// bad case
+	err = NotEmpty()("")
+	assert.Equal(t, errors.Cause(err), ErrNotInScope)
+}
