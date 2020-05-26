@@ -76,7 +76,7 @@ func newFilter(rawKey string, value string, delimiter string, validations Valida
 		return nil, err
 	}
 
-	// detect have we validate definition on this parameter name or not
+	// detect have we validator func definition on this parameter or not
 	validate, ok := detectValidation(f.Name, validations)
 	if !ok {
 		return nil, ErrValidationNotFound
@@ -125,8 +125,8 @@ func (f *Filter) validate(validate ValidationFunc) error {
 	return nil
 }
 
-// parseKey parses key from f.Key which must be set from url
-// sets Name, Method
+// parseKey parses key to set f.Name and f.Method
+//   id[eq] -> f.Name = "id", f.Method = EQ
 func (f *Filter) parseKey(key string) error {
 
 	// default Method is EQ

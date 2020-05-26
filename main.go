@@ -471,11 +471,67 @@ func NewParse(q url.Values, v Validations) (*Query, error) {
 	return query, query.Parse()
 }
 
-// requiredNames returns list of required filters
-func requiredNames(validations Validations) []string {
-	var requiredNames []string
+// Parse parses the query of URL
+// as query you can use standart http.Request query by r.URL.Query()
+func (q *Query) Parse() (err error) {
 
-	for name, f := range validations {
+	// clean previously parsed filters
+	q.cleanFilters()
+
+	// construct a slice with required names of filters
+	requiredNames := q.requiredNames()
+
+	for key, values := range q.query {
+
+		low := strings.ToLower(key)
+
+		switch low {
+		case "fields", "fields[in]":
+			low = strings.ReplaceAll(low, "[in]", "")
+			err = q.parseFields(values, q.validations[low])
+			delete(requiredNames, low)
+		case "offset", "offset[in]":
+			low = strings.ReplaceAll(low, "[in]", "")
+			err = q.parseOffset(values, q.validations[low])
+			delete(requiredNames, low)
+		case "limit", "limit[in]":
+			low = strings.ReplaceAll(low, "[in]", "")
+			err = q.parseLimit(values, q.validations[low])
+			delete(requiredNames, low)
+		case "sort", "sort[in]":
+			low = strings.ReplaceAll(low, "[in]", "")
+			err = q.parseSort(values, q.validations[low])
+			delete(requiredNames, low)
+		default:
+			if len(values) != 1 {
+				return errors.Wrap(ErrBadFormat, key)
+			}
+			if err = q.parseFilter(key, values[0]); err != nil {
+				return err
+			}
+		}
+
+		if err != nil {
+			return errors.Wrap(err, key)
+		}
+	}
+
+	// check required filters
+
+	for requiredName := range requiredNames {
+		if !q.HaveFilter(requiredName) {
+			return errors.Wrap(ErrRequired, requiredName)
+		}
+	}
+
+	return nil
+}
+
+// requiredNames returns list of required filters
+func (q *Query) requiredNames() map[string]bool {
+	required := make(map[string]bool)
+
+	for name, f := range q.validations {
 		if strings.Contains(name, ":required") {
 			oldname := name
 			// oldname = arg1:required
@@ -500,18 +556,19 @@ func requiredNames(validations Validations) []string {
 				"limit", "limit[in]",
 				"sort", "sort[in]":
 				low = strings.ReplaceAll(low, "[in]", "")
-				requiredNames = append(requiredNames, low)
+				required[low] = true
 			default:
-				requiredNames = append(requiredNames, name)
+				required[name] = true
 			}
 
-			validations[newname] = f
-			delete(validations, oldname)
+			q.validations[newname] = f
+			delete(q.validations, oldname)
 		}
 	}
-	return requiredNames
+	return required
 }
 
+// parseFilter parses one filter
 func (q *Query) parseFilter(key, value string) error {
 	value = strings.TrimSpace(value)
 
@@ -558,10 +615,9 @@ func (q *Query) parseFilter(key, value string) error {
 		filter, err := newFilter(key, value, q.delimiterIN, q.validations)
 		if err != nil {
 			if err == ErrValidationNotFound {
+				err = ErrFilterNotFound
 				if q.ignoreUnknown {
 					return nil
-				} else {
-					return errors.Wrap(ErrFilterNotFound, key)
 				}
 			}
 			return errors.Wrap(err, key)
@@ -581,68 +637,6 @@ func (q *Query) cleanFilters() {
 		}
 		q.Filters = nil
 	}
-}
-
-// Parse parses the query of URL
-// as query you can use standart http.Request query by r.URL.Query()
-func (q *Query) Parse() error {
-
-	// clean previously parserd filters
-	q.cleanFilters()
-
-	// construct a slice with required names of filters
-	requiredNames := requiredNames(q.validations)
-
-	//fmt.Println("NEW QUERY:")
-
-	for key, values := range q.query {
-
-		low := strings.ToLower(key)
-
-		switch low {
-		case "fields", "fields[in]":
-			low = strings.ReplaceAll(low, "[in]", "")
-			if err := q.parseFields(values, q.validations[low]); err != nil {
-				return errors.Wrap(err, key)
-			}
-			requiredNames = removeFromSlice(requiredNames, low)
-		case "offset", "offset[in]":
-			low = strings.ReplaceAll(low, "[in]", "")
-			if err := q.parseOffset(values, q.validations[low]); err != nil {
-				return errors.Wrap(err, key)
-			}
-			requiredNames = removeFromSlice(requiredNames, low)
-		case "limit", "limit[in]":
-			low = strings.ReplaceAll(low, "[in]", "")
-			if err := q.parseLimit(values, q.validations[low]); err != nil {
-				return errors.Wrap(err, key)
-			}
-			requiredNames = removeFromSlice(requiredNames, low)
-		case "sort", "sort[in]":
-			low = strings.ReplaceAll(low, "[in]", "")
-			if err := q.parseSort(values, q.validations[low]); err != nil {
-				return errors.Wrap(err, key)
-			}
-			requiredNames = removeFromSlice(requiredNames, low)
-		default:
-			if len(values) != 1 {
-				return errors.Wrap(ErrBadFormat, key)
-			}
-			if err := q.parseFilter(key, values[0]); err != nil {
-				return err
-			}
-		}
-	}
-
-	// check required filters
-
-	for _, requiredName := range requiredNames {
-		if !q.HaveFilter(requiredName) {
-			return errors.Wrap(ErrRequired, requiredName)
-		}
-	}
-
-	return nil
 }
 
 func (q *Query) parseSort(value []string, validate ValidationFunc) error {
