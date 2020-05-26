@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// Filter represents a filter defined in the query part of URL
 type Filter struct {
 	Key    string // key from URL (eg. "id[eq]")
 	Name   string // name of filter, takes from Key (eg. "id")

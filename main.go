@@ -471,23 +471,11 @@ func NewParse(q url.Values, v Validations) (*Query, error) {
 	return query, query.Parse()
 }
 
-// Parse parses the query of URL
-// as query you can use standart http.Request query by r.URL.Query()
-func (q *Query) Parse() error {
-
-	// clean the filters slice
-	if len(q.Filters) > 0 {
-		for i := range q.Filters {
-			q.Filters[i] = nil
-		}
-		q.Filters = nil
-	}
-
-	// construct a slice with required names of filters
-
+// requiredNames returns list of required filters
+func requiredNames(validations Validations) []string {
 	var requiredNames []string
 
-	for name, f := range q.validations {
+	for name, f := range validations {
 		if strings.Contains(name, ":required") {
 			oldname := name
 			// oldname = arg1:required
@@ -517,10 +505,93 @@ func (q *Query) Parse() error {
 				requiredNames = append(requiredNames, name)
 			}
 
-			q.validations[newname] = f
-			delete(q.validations, oldname)
+			validations[newname] = f
+			delete(validations, oldname)
 		}
 	}
+	return requiredNames
+}
+
+func (q *Query) parseFilter(key, value string) error {
+	value = strings.TrimSpace(value)
+
+	if len(value) == 0 {
+		return errors.Wrap(ErrEmptyValue, key)
+	}
+
+	if strings.Contains(value, q.delimiterOR) { // OR multiple filter
+		parts := strings.Split(value, q.delimiterOR)
+		for i, v := range parts {
+			if i > 0 {
+				u := strings.Split(v, "=")
+				if len(u) < 2 {
+					return errors.Wrap(ErrBadFormat, key)
+				}
+				key = u[0]
+				v = u[1]
+			}
+
+			v := strings.TrimSpace(v)
+			if len(v) == 0 {
+				return errors.Wrap(ErrEmptyValue, key)
+			}
+
+			filter, err := newFilter(key, v, q.delimiterIN, q.validations)
+
+			if err != nil {
+				if err == ErrValidationNotFound {
+					if q.ignoreUnknown {
+						continue
+					} else {
+						return errors.Wrap(ErrFilterNotFound, key)
+					}
+				}
+				return errors.Wrap(err, key)
+			}
+
+			// set OR
+			filter.Or = true
+
+			q.Filters = append(q.Filters, filter)
+		}
+	} else { // Single filter
+		filter, err := newFilter(key, value, q.delimiterIN, q.validations)
+		if err != nil {
+			if err == ErrValidationNotFound {
+				if q.ignoreUnknown {
+					return nil
+				} else {
+					return errors.Wrap(ErrFilterNotFound, key)
+				}
+			}
+			return errors.Wrap(err, key)
+		}
+
+		q.Filters = append(q.Filters, filter)
+	}
+
+	return nil
+}
+
+// clean the filters slice
+func (q *Query) cleanFilters() {
+	if len(q.Filters) > 0 {
+		for i := range q.Filters {
+			q.Filters[i] = nil
+		}
+		q.Filters = nil
+	}
+}
+
+// Parse parses the query of URL
+// as query you can use standart http.Request query by r.URL.Query()
+func (q *Query) Parse() error {
+
+	// clean previously parserd filters
+	q.cleanFilters()
+
+	// construct a slice with required names of filters
+	requiredNames := requiredNames(q.validations)
 
 	//fmt.Println("NEW QUERY:")
 
@@ -554,74 +625,13 @@ func (q *Query) Parse() error {
 			}
 			requiredNames = removeFromSlice(requiredNames, low)
 		default:
-			if len(values) == 1 {
-
-				//fmt.Println("new filter:")
-
-				value := strings.TrimSpace(values[0])
-				if len(value) == 0 {
-					return errors.Wrap(ErrEmptyValue, key)
-				}
-
-				if strings.Contains(value, q.delimiterOR) { // OR multiple filter
-					parts := strings.Split(value, q.delimiterOR)
-					for i, v := range parts {
-						if i > 0 {
-							u := strings.Split(v, "=")
-							if len(u) < 2 {
-								return errors.Wrap(ErrBadFormat, key)
-							}
-							key = u[0]
-							v = u[1]
-						}
-
-						//fmt.Println("key:", key, "value:", v)
-
-						v := strings.TrimSpace(v)
-						if len(v) == 0 {
-							return errors.Wrap(ErrEmptyValue, key)
-						}
-
-						filter, err := newFilter(key, v, q.delimiterIN, q.validations)
-
-						if err != nil {
-							if err == ErrValidationNotFound {
-								if q.ignoreUnknown {
-									continue
-								} else {
-									return errors.Wrap(ErrFilterNotFound, key)
-								}
-							}
-							return errors.Wrap(err, key)
-						}
-
-						// set OR
-						filter.Or = true
-
-						q.Filters = append(q.Filters, filter)
-					}
-				} else { // Single filter
-					//fmt.Println("key:", key, "value:", value)
-					filter, err := newFilter(key, value, q.delimiterIN, q.validations)
-					if err != nil {
-						if err == ErrValidationNotFound {
-							if q.ignoreUnknown {
-								continue
-							} else {
-								return errors.Wrap(ErrFilterNotFound, key)
-							}
-						}
-						return errors.Wrap(err, key)
-					}
-
-					q.Filters = append(q.Filters, filter)
-				}
-
-			} else {
+			if len(values) != 1 {
 				return errors.Wrap(ErrBadFormat, key)
 			}
+			if err := q.parseFilter(key, values[0]); err != nil {
+				return err
+			}
 		}
-
 	}
 
 	// check required filters

@@ -4,8 +4,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+// ValidationFunc represents validator for Filters
 type ValidationFunc func(value interface{}) error
 
+// Validations type replacement for map.
+// Used in NewParse(), NewQV(), SetValidations()
 type Validations map[string]ValidationFunc
 
 // Multi multiple validation func
