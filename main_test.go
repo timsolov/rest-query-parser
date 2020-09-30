@@ -9,6 +9,57 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestSetDelimiterOR(t *testing.T) {
+	q := New()
+	q.SetDelimiterOR("!")
+	assert.Equal(t, q.delimiterOR, "!")
+}
+
+func TestSelect(t *testing.T) {
+	q := New()
+	assert.Equal(t, q.Select(), "*")
+
+	q.AddField("test1")
+	q.AddField("test2")
+	assert.Equal(t, q.Select(), "test1, test2")
+}
+
+func TestSELECT(t *testing.T) {
+	q := New()
+	assert.Equal(t, q.SELECT(), "SELECT *")
+
+	q.AddField("test1")
+	q.AddField("test2")
+	assert.Equal(t, q.SELECT(), "SELECT test1, test2")
+}
+
+func TestOrder(t *testing.T) {
+	q := New()
+	assert.Equal(t, q.Order(), "")
+}
+
+func TestHaveSortBy(t *testing.T) {
+	q := New()
+	assert.Equal(t, q.HaveSortBy("fake"), false)
+}
+
+func TestRemoveFilter(t *testing.T) {
+	q := New()
+	q.AddFilter("id", ILIKE, "id")
+	q.AddFilter("test", ILIKE, "test")
+	q.AddFilter("test2", ILIKE, "test2")
+	assert.NoError(t, q.RemoveFilter("test"))
+}
+
+func TestGetFilter(t *testing.T) {
+	q := New()
+	q.AddFilter("id", ILIKE, "id")
+	q.AddFilter("test", ILIKE, "test")
+	q.AddFilter("test2", ILIKE, "test2")
+	_, err := q.GetFilter("test")
+	assert.NoError(t, err)
+}
+
 func TestFields(t *testing.T) {
 
 	// mockValidation := func(value interface{}) error { return nil }
@@ -178,7 +229,7 @@ func TestWhere(t *testing.T) {
 		{url: "?u[eq]=1,2", expected: "", err: "u[eq]: method are not allowed"},
 		{url: "?u[gt]=1", expected: "", err: "u[gt]: method are not allowed"},
 		{url: "?id[in]=1,2", expected: " WHERE id IN (?, ?)"},
-		{url: "?id[eq]=1&id[eq]=4", err: "id[eq]: bad format"},
+		{url: "?id[eq]=1&id[eq]=4", expected: " WHERE id = ? AND id = ?"},
 		{url: "?id[gte]=1&id[lte]=4", expected: " WHERE id >= ? AND id <= ?", expected2: " WHERE id <= ? AND id >= ?"},
 		{url: "?id[gte]=1|id[lte]=4", expected: " WHERE (id >= ? OR id <= ?)", expected2: " WHERE (id <= ? OR id >= ?)"},
 		{url: "?u[not]=NULL", expected: " WHERE u IS NOT NULL"},
@@ -253,6 +304,19 @@ func TestWhere2(t *testing.T) {
 	//t.Log(q.SQL("tab"), q.Args())
 	assert.NoError(t, q.SetUrlString("?id[eq]=10&s[like]=super|u[like]=&id[gt]=1"))
 	assert.EqualError(t, q.Parse(), "u[like]: empty value")
+}
+
+func TestWhere3(t *testing.T) {
+	q := NewQV(nil, Validations{
+		"test1": nil,
+		"test2": nil,
+	})
+	URL, err := url.Parse("?test1[eq]=test10|test2[eq]=test20&test1[eq]=test11|test2[eq]=test21")
+	assert.NoError(t, err)
+	assert.NoError(t, q.SetUrlQuery(URL.Query()).Error)
+	assert.NoError(t, q.Parse())
+	where := q.Where()
+	assert.Equal(t, where, "(test1 = ? OR test2 = ?) AND (test1 = ? OR test2 = ?)")
 }
 
 func TestArgs(t *testing.T) {
