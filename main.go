@@ -19,6 +19,7 @@ type Query struct {
 	Limit   int
 	Sorts   []Sort
 	Filters []*Filter
+	FilterList [][]*Filter
 
 	delimiterIN   string
 	delimiterOR   string
@@ -336,59 +337,78 @@ func (q *Query) ReplaceNames(r Replacer) {
 // return example: `id > 0 AND email LIKE 'some@email.com'`
 func (q *Query) Where() string {
 
-	if len(q.Filters) == 0 {
+	if len(q.FilterList) == 0 {
 		return ""
 	}
 
+	var whereList []string
+
 	var where string
-	var OR bool = false
+	var OR bool
 
-	for i := 0; i < len(q.Filters); i++ {
-		filter := q.Filters[i]
-
-		prefix := ""
-		suffix := ""
-
-		if filter.Or && !OR {
-			if i == 0 {
-				prefix = "("
-			} else {
-				prefix = " AND ("
-			}
-			OR = true
-		} else if filter.Or && OR {
-			prefix = " OR "
-			// if last element of next element not OR method
-			if i+1 == len(q.Filters) || (i+1 < len(q.Filters) && !q.Filters[i+1].Or) {
-				suffix = ")"
-				OR = false
-			}
-		} else {
-			if i > 0 {
-				prefix = " AND "
-			}
-		}
-
-		if a, err := filter.Where(); err == nil {
-			where += fmt.Sprintf("%s%s%s", prefix, a, suffix)
-		} else {
+	for key := range q.FilterList {
+		where = ``
+		OR = false
+		if len(q.FilterList[key]) == 0 {
 			continue
 		}
+		for i := 0; i < len(q.FilterList[key]); i++ {
+			filter := q.FilterList[key][i]
 
+			prefix := ""
+			suffix := ""
+
+			if filter.Or && !OR {
+				if i == 0 {
+					prefix = "("
+				} else {
+					prefix = " AND ("
+				}
+				OR = true
+			} else if filter.Or && OR {
+				prefix = " OR "
+				// if last element of next element not OR method
+				if i+1 == len(q.Filters) || (i+1 < len(q.Filters) && !q.Filters[i+1].Or) {
+					suffix = ")"
+					OR = false
+				}
+			} else {
+				if i > 0 {
+					prefix = " AND "
+				}
+			}
+
+			if a, err := filter.Where(); err == nil {
+				where += fmt.Sprintf("%s%s%s", prefix, a, suffix)
+			} else {
+				continue
+			}
+		}
+		if where != `` {
+			whereList = append(whereList, where)
+		}
 	}
 
-	return where
+	if len(whereList) == 0 {
+		return ``
+	}
+
+	return strings.Join(whereList, ` AND `)
 }
 
 // WHERE returns list of filters for WHERE SQL statement with `WHERE` word
 // return example: `WHERE id > 0 AND email LIKE 'some@email.com'`
 func (q *Query) WHERE() string {
-
-	if len(q.Filters) == 0 {
+	if len(q.FilterList) == 0 {
 		return ""
 	}
 
-	return " WHERE " + q.Where()
+	where := q.Where()
+	if where == `` {
+		return ``
+	}
+
+	return " WHERE " + where
 }
 
 // Args returns slice of arguments for WHERE statement
@@ -407,6 +427,34 @@ func (q *Query) Args() []interface{} {
 			args = append(args, a...)
 		} else {
 			continue
+		}
+	}
+
+	return args
+}
+
+// ArgsList returns slice of arguments for WHERE statement and FilterList
+func (q *Query) ArgsList() []interface{} {
+
+	args := make([]interface{}, 0)
+
+	if len(q.FilterList) == 0 {
+		return args
+	}
+
+	for key := range q.FilterList {
+		if len(q.FilterList[key]) == 0 {
+			continue
+		}
+
+		for i := 0; i < len(q.FilterList[key]); i++ {
+			filter := q.FilterList[key][i]
+
+			if a, err := filter.Args(); err == nil {
+				args = append(args, a...)
+			} else {
+				continue
+			}
 		}
 	}
 
@@ -503,11 +551,14 @@ func (q *Query) Parse() (err error) {
 			err = q.parseSort(values, q.validations[low])
 			delete(requiredNames, low)
 		default:
-			if len(values) != 1 {
+			if len(values) == 0 {
 				return errors.Wrap(ErrBadFormat, key)
 			}
-			if err = q.parseFilter(key, values[0]); err != nil {
-				return err
+
+			for i := 0; i < len(values); i++ {
+				if err = q.parseFilter(key, values[i]); err != nil {
+					return err
+				}
 			}
 		}
 
@@ -576,6 +627,8 @@ func (q *Query) parseFilter(key, value string) error {
 		return errors.Wrap(ErrEmptyValue, key)
 	}
 
+	q.Filters = make([]*Filter, 0)
+
 	if strings.Contains(value, q.delimiterOR) { // OR multiple filter
 		parts := strings.Split(value, q.delimiterOR)
 		for i, v := range parts {
@@ -626,6 +679,8 @@ func (q *Query) parseFilter(key, value string) error {
 		q.Filters = append(q.Filters, filter)
 	}
 
+	q.FilterList = append(q.FilterList, q.Filters)
+
 	return nil
 }
 
@@ -637,6 +692,7 @@ func (q *Query) cleanFilters() {
 		}
 		q.Filters = nil
 	}
+	q.FilterList = make([][]*Filter, 0)
 }
 
 func (q *Query) parseSort(value []string, validate ValidationFunc) error {
