@@ -127,7 +127,7 @@ func (q *Query) Select() string {
 //
 func (q *Query) SELECT() string {
 	if len(q.Fields) == 0 {
-		return "*"
+		return "SELECT *"
 	}
 	return fmt.Sprintf("SELECT %s", q.FieldsString())
 }
