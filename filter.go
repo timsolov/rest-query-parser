@@ -255,21 +255,16 @@ func (f *Filter) Args() ([]interface{}, error) {
 
 func (f *Filter) setInt(list []string) error {
 	if len(list) == 1 {
-		if f.Method != EQ &&
-			f.Method != NE &&
-			f.Method != GT &&
-			f.Method != LT &&
-			f.Method != GTE &&
-			f.Method != LTE &&
-			f.Method != IN {
+		switch f.Method {
+		case EQ, NE, GT, LT, GTE, LTE, IN:
+			i, err := strconv.Atoi(list[0])
+			if err != nil {
+				return ErrBadFormat
+			}
+			f.Value = i
+		default:
 			return ErrMethodNotAllowed
 		}
-
-		i, err := strconv.Atoi(list[0])
-		if err != nil {
-			return ErrBadFormat
-		}
-		f.Value = i
 	} else {
 		if f.Method != IN {
 			return ErrMethodNotAllowed
@@ -307,7 +302,7 @@ func (f *Filter) setBool(list []string) error {
 func (f *Filter) setString(list []string) error {
 	if len(list) == 1 {
 		switch f.Method {
-		case EQ, NE, LIKE, ILIKE, IN:
+		case EQ, NE, GT, LT, GTE, LTE, LIKE, ILIKE, IN:
 			f.Value = list[0]
 			return nil
 		case IS, NOT:

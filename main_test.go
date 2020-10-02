@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"testing"
 
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pkg/errors"
 
 	"github.com/stretchr/testify/assert"
@@ -504,4 +505,51 @@ func Test_MultipleUsageOfUniqueFilters(t *testing.T) {
 	assert.NoError(t, q.Parse())
 	assert.Equal(t, "SELECT * FROM test WHERE (id = ? OR u = ?) AND (id = ? OR u = ?)", q.SQL("test"))
 	t.Log(q.SQL("test"))
+}
+
+func Test_Date(t *testing.T) {
+
+	q := New()
+
+	q.SetValidations(Validations{
+		"created_at": func(v interface{}) error {
+			s, ok := v.(string)
+			if !ok {
+				return ErrBadFormat
+			}
+			return validation.Validate(s, validation.Date("2006-01-02"))
+		},
+	})
+
+	cases := []struct {
+		uri      string
+		variant1 string
+		variant2 string
+	}{
+		{
+			uri:      "?created_at[eq]=2020-10-02",
+			variant1: "SELECT * FROM test WHERE DATE(created_at) = ?",
+		},
+		{
+			uri:      "?created_at[gt]=2020-10-01&created_at[lt]=2020-10-03",
+			variant1: "SELECT * FROM test WHERE DATE(created_at) > ? AND DATE(created_at) < ?",
+			variant2: "SELECT * FROM test WHERE DATE(created_at) < ? AND DATE(created_at) > ?",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.uri, func(t *testing.T) {
+			q.SetUrlString(tc.uri)
+			assert.NoError(t, q.Parse())
+			q.ReplaceNames(Replacer{"created_at": "DATE(created_at)"})
+			query := q.SQL("test")
+			assert.Condition(t, func() bool {
+				if tc.variant1 != query && tc.variant2 != query {
+					t.Log(query)
+					return false
+				}
+				return true
+			})
+		})
+	}
 }
