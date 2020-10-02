@@ -201,7 +201,7 @@ func (f *Filter) Where() (string, error) {
 	var exp string
 
 	switch f.Method {
-	case EQ, NE, GT, LT, GTE, LTE, LIKE, ILIKE:
+	case EQ, NE, GT, LT, GTE, LTE, LIKE, ILIKE, NLIKE, NILIKE:
 		exp = fmt.Sprintf("%s %s ?", f.Name, translateMethods[f.Method])
 		return exp, nil
 	case IS, NOT:
@@ -234,7 +234,7 @@ func (f *Filter) Args() ([]interface{}, error) {
 			return args, nil
 		}
 		return nil, ErrUnknownMethod
-	case LIKE, ILIKE:
+	case LIKE, ILIKE, NLIKE, NILIKE:
 		value := f.Value.(string)
 		if len(value) >= 2 && strings.HasPrefix(value, "*") {
 			value = "%" + value[1:]
@@ -302,7 +302,7 @@ func (f *Filter) setBool(list []string) error {
 func (f *Filter) setString(list []string) error {
 	if len(list) == 1 {
 		switch f.Method {
-		case EQ, NE, GT, LT, GTE, LTE, LIKE, ILIKE, IN:
+		case EQ, NE, GT, LT, GTE, LTE, LIKE, ILIKE, NLIKE, NILIKE, IN:
 			f.Value = list[0]
 			return nil
 		case IS, NOT:

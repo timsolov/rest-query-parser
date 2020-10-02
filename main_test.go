@@ -220,6 +220,10 @@ func TestWhere(t *testing.T) {
 		{url: "?id=100", err: "id: can't be greater then 10"},
 		{url: "?id[in]=100,200", err: "id[in]: can't be greater then 10"},
 
+		// not like, not ilike:
+		{url: "?u[nlike]=superman", expected: " WHERE u NOT LIKE ?"},
+		{url: "?u[nilike]=superman", expected: " WHERE u NOT ILIKE ?"},
+
 		{url: "?id=1&name=superman", expected: " WHERE id = ?", ignore: true},
 		{url: "?id=1&name=superman&s[like]=super", expected: " WHERE id = ? AND s LIKE ?", expected2: " WHERE s LIKE ? AND id = ?", ignore: true},
 		{url: "?s=super", expected: " WHERE s = ?"},
@@ -228,11 +232,12 @@ func TestWhere(t *testing.T) {
 		{url: "?s=puper", expected: "", err: "s: puper: not in scope"},
 		{url: "?u=puper", expected: " WHERE u = ?"},
 		{url: "?u[eq]=1,2", expected: "", err: "u[eq]: method are not allowed"},
-		{url: "?u[gt]=1", expected: "", err: "u[gt]: method are not allowed"},
+		{url: "?u[gt]=1", expected: " WHERE u > ?"},
 		{url: "?id[in]=1,2", expected: " WHERE id IN (?, ?)"},
 		{url: "?id[eq]=1&id[eq]=4", expected: " WHERE id = ? AND id = ?"},
 		{url: "?id[gte]=1&id[lte]=4", expected: " WHERE id >= ? AND id <= ?", expected2: " WHERE id <= ? AND id >= ?"},
 		{url: "?id[gte]=1|id[lte]=4", expected: " WHERE (id >= ? OR id <= ?)", expected2: " WHERE (id <= ? OR id >= ?)"},
+		// null:
 		{url: "?u[not]=NULL", expected: " WHERE u IS NOT NULL"},
 		{url: "?u[is]=NULL", expected: " WHERE u IS NULL"},
 		// bool:
