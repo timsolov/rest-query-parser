@@ -12,7 +12,6 @@ func Test_Where(t *testing.T) {
 			Key:    "id[not]",
 			Name:   "id",
 			Method: NOT,
-			Or:     true,
 		}
 		_, err := filter.Where()
 		assert.Equal(t, err, ErrUnknownMethod)
@@ -21,7 +20,6 @@ func Test_Where(t *testing.T) {
 			Key:    "id[fake]",
 			Name:   "id",
 			Method: "fake",
-			Or:     true,
 		}
 		_, err = filter.Where()
 		assert.Equal(t, err, ErrUnknownMethod)
@@ -34,7 +32,6 @@ func Test_Args(t *testing.T) {
 			Key:    "id[not]",
 			Name:   "id",
 			Method: NOT,
-			Or:     true,
 			Value:  "id",
 		}
 		_, err := filter.Args()
@@ -44,7 +41,6 @@ func Test_Args(t *testing.T) {
 			Key:    "id[fake]",
 			Name:   "id",
 			Method: "fake",
-			Or:     true,
 		}
 		_, err = filter.Args()
 		assert.Equal(t, err, ErrUnknownMethod)

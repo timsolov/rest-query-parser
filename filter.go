@@ -6,13 +6,22 @@ import (
 	"strings"
 )
 
+type StateOR byte
+
+const (
+	NoOR StateOR = iota
+	StartOR
+	InOR
+	EndOR
+)
+
 // Filter represents a filter defined in the query part of URL
 type Filter struct {
 	Key    string // key from URL (eg. "id[eq]")
 	Name   string // name of filter, takes from Key (eg. "id")
 	Method Method // compare method, takes from Key (eg. EQ)
 	Value  interface{}
-	Or     bool
+	OR     StateOR
 }
 
 // detectValidation
@@ -195,7 +204,7 @@ func (f *Filter) Where() (string, error) {
 	case EQ, NE, GT, LT, GTE, LTE, LIKE, ILIKE:
 		exp = fmt.Sprintf("%s %s ?", f.Name, translateMethods[f.Method])
 		return exp, nil
-	case NOT:
+	case IS, NOT:
 		if f.Value == NULL {
 			exp = fmt.Sprintf("%s %s NULL", f.Name, translateMethods[f.Method])
 			return exp, nil
@@ -219,7 +228,7 @@ func (f *Filter) Args() ([]interface{}, error) {
 	case EQ, NE, GT, LT, GTE, LTE:
 		args = append(args, f.Value)
 		return args, nil
-	case NOT:
+	case IS, NOT:
 		if f.Value == NULL {
 			args = append(args, f.Value)
 			return args, nil
@@ -301,7 +310,7 @@ func (f *Filter) setString(list []string) error {
 		case EQ, NE, LIKE, ILIKE, IN:
 			f.Value = list[0]
 			return nil
-		case NOT:
+		case IS, NOT:
 			if strings.Compare(strings.ToUpper(list[0]), NULL) == 0 {
 				f.Value = NULL
 				return nil

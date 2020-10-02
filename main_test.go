@@ -233,6 +233,7 @@ func TestWhere(t *testing.T) {
 		{url: "?id[gte]=1&id[lte]=4", expected: " WHERE id >= ? AND id <= ?", expected2: " WHERE id <= ? AND id >= ?"},
 		{url: "?id[gte]=1|id[lte]=4", expected: " WHERE (id >= ? OR id <= ?)", expected2: " WHERE (id <= ? OR id >= ?)"},
 		{url: "?u[not]=NULL", expected: " WHERE u IS NOT NULL"},
+		{url: "?u[is]=NULL", expected: " WHERE u IS NULL"},
 		// bool:
 		{url: "?b=true", expected: " WHERE b = ?"},
 		{url: "?b=true1", err: "b: bad format"},
@@ -337,13 +338,12 @@ func TestArgs(t *testing.T) {
 	}).Parse()
 	assert.NoError(t, err)
 
-	assert.Len(t, q.Args(), 6)
+	assert.Len(t, q.Args(), 5)
 	assert.Contains(t, q.Args(), 123)
 	assert.Contains(t, q.Args(), "test")
 	assert.Contains(t, q.Args(), "%www%")
 	assert.Contains(t, q.Args(), "www1")
 	assert.Contains(t, q.Args(), "www2")
-	assert.Contains(t, q.Args(), "NULL")
 }
 
 func TestSQL(t *testing.T) {
@@ -477,4 +477,31 @@ func TestRemoveValidation(t *testing.T) {
 	// remove typed validation
 	q.AddValidation("name:string", In("id"))
 	assert.NoError(t, q.RemoveValidation("name"))
+}
+
+func Test_RemoveFilter(t *testing.T) {
+	t.Run("?id[eq]=10|id[eq]=11", func(t *testing.T) {
+		q := New()
+		q.SetValidations(Validations{
+			"id:int": nil,
+			"u:int":  nil,
+		})
+		assert.NoError(t, q.SetUrlString("?id[eq]=10|id[eq]=11"))
+		assert.NoError(t, q.Parse())
+		assert.NoError(t, q.RemoveFilter("id"))
+		assert.Equal(t, "SELECT * FROM test", q.SQL("test"))
+	})
+}
+
+func Test_MultipleUsageOfUniqueFilters(t *testing.T) {
+
+	q := New()
+	q.SetValidations(Validations{
+		"id:int": nil,
+		"u:int":  nil,
+	})
+	assert.NoError(t, q.SetUrlString("?id[eq]=10|u[eq]=10&id[eq]=11|u[eq]=11"))
+	assert.NoError(t, q.Parse())
+	assert.Equal(t, "SELECT * FROM test WHERE (id = ? OR u = ?) AND (id = ? OR u = ?)", q.SQL("test"))
+	t.Log(q.SQL("test"))
 }
