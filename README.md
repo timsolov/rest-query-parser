@@ -64,9 +64,34 @@ See cmd/main.go and tests for more examples.
 * `:bool` - parameter must be convertable to bool type. Raise error if not.
 
 ## Supported types
-- `string` - the default type for all provided filters if not specified another. Could be compared by `eq, ne, like, ilike, in` methods.
+- `string` - the default type for all provided filters if not specified another. Could be compared by `eq, ne, gt, lt, gte, lte, like, ilike, nlike, nilike, in, is, not` methods (`nlike, nilike` means `NOT LIKE, NOT ILIKE` respectively, `is, not` for comparison to NULL `IS NULL, IS NOT NULL`).
 - `int` - integer type. Must be specified with tag ":int". Could be compared by `eq, ne, gt, lt, gte, lte, in` methods.
 - `bool` - boolean type. Must be specified with tag ":bool". Could be compared by `eq` method.
 
-## TODO:
-- new type `time`.
+## Date usage
+This is simple example to show logic which you can extend.
+
+```go
+    import (
+        "fmt"
+        "net/url"
+        validation "github.com/go-ozzo/ozzo-validation/v4"
+    )
+
+    func main() {
+        url, _ := url.Parse("http://localhost/?create_at[eq]=2020-10-02")
+        q, _ := rqp.NewParse(url.Query(), rqp.Validations{
+            "created_at": func(v interface{}) error {
+                s, ok := v.(string)
+                if !ok {
+                    return rqp.ErrBadFormat
+                }
+                return validation.Validate(s, validation.Date("2006-01-02"))
+            },
+        })
+
+        q.ReplaceNames(rqp.Replacer{"created_at": "DATE(created_at)"})
+
+        fmt.Println(q.SQL("table")) // SELECT * FROM table WHERE DATE(created_at) = ?
+    }
+```
