@@ -123,7 +123,7 @@ func (q *Query) Select() string {
 }
 
 // SELECT returns word SELECT with fields from Filter "fields" separated by comma (",") from URL-Query
-// or word SELECT with star ("*") if nothing provided'
+// or word SELECT with star ("*") if nothing provided
 //
 // Return examples:
 //
@@ -138,19 +138,21 @@ func (q *Query) SELECT() string {
 	return fmt.Sprintf("SELECT %s", q.FieldsString())
 }
 
-// HaveField returns true if request asks for field
+// HaveField returns true if request asks for specified field
 func (q *Query) HaveField(field string) bool {
 	return stringInSlice(field, q.Fields)
 }
 
-// AddField returns true if request asks for field
+// AddField adds field to SELECT statement
 func (q *Query) AddField(field string) *Query {
 	q.Fields = append(q.Fields, field)
 	return q
 }
 
-// OFFSET returns OFFSET statement
-// return example: `OFFSET 0`
+// OFFSET returns word OFFSET with number
+//
+// Return example: ` OFFSET 0`
+//
 func (q *Query) OFFSET() string {
 	if q.Offset > 0 {
 		return fmt.Sprintf(" OFFSET %d", q.Offset)
@@ -158,8 +160,10 @@ func (q *Query) OFFSET() string {
 	return ""
 }
 
-// LIMIT returns LIMIT statement
-// return example: `LIMIT 100`
+// LIMIT returns word LIMIT with number
+//
+// Return example: ` LIMIT 100`
+//
 func (q *Query) LIMIT() string {
 	if q.Limit > 0 {
 		return fmt.Sprintf(" LIMIT %d", q.Limit)
@@ -191,9 +195,10 @@ func (q *Query) Order() string {
 	return s
 }
 
-// ORDER returns ORDER BY statement with list of elements for sorting
-// you can use +/- prefix to specify direction of sorting (+ is default)
-// return example: `ORDER BY id DESC, email`
+// ORDER returns words ORDER BY with list of elements for sorting
+// you can use +/- prefix to specify direction of sorting (+ is default, apsent is +)
+//
+// Return example: ` ORDER BY id DESC, email`
 func (q *Query) ORDER() string {
 	if len(q.Sorts) == 0 {
 		return ""
@@ -201,7 +206,7 @@ func (q *Query) ORDER() string {
 	return fmt.Sprintf(" ORDER BY %s", q.Order())
 }
 
-// HaveSortBy returns true if request contains some sorting
+// HaveSortBy returns true if request contains sorting by specified in by field name
 func (q *Query) HaveSortBy(by string) bool {
 
 	for _, v := range q.Sorts {
@@ -213,7 +218,7 @@ func (q *Query) HaveSortBy(by string) bool {
 	return false
 }
 
-// AddSortBy adds an order rule to Query
+// AddSortBy adds an ordering rule to Query
 func (q *Query) AddSortBy(by string, desc bool) *Query {
 	q.Sorts = append(q.Sorts, Sort{
 		By:   by,
@@ -277,8 +282,8 @@ func (q *Query) AddValidation(NameAndTags string, v ValidationFunc) *Query {
 }
 
 // RemoveValidation remove a validation from Query
-// You can provide full name of filer with tags or only name of filter:
-// RemoveValidation("id:int") and RemoveValidation("id") are same
+// You can provide full name of filter with tags or only name of filter:
+// RemoveValidation("id:int") and RemoveValidation("id") are equal
 func (q *Query) RemoveValidation(NameAndOrTags string) error {
 	for k := range q.validations {
 		if k == NameAndOrTags {
@@ -386,7 +391,9 @@ func (q *Query) Where() string {
 }
 
 // WHERE returns list of filters for WHERE SQL statement with `WHERE` word
-// return example: `WHERE id > 0 AND email LIKE 'some@email.com'`
+//
+// Return example: ` WHERE id > 0 AND email LIKE 'some@email.com'`
+//
 func (q *Query) WHERE() string {
 
 	if len(q.Filters) == 0 {
