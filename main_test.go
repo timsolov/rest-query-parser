@@ -212,6 +212,8 @@ func TestWhere(t *testing.T) {
 		{url: "?id=1.2", expected: "", err: "id: bad format"},
 		{url: "?id[in]=1.2", expected: "", err: "id[in]: bad format"},
 		{url: "?id[in]=1.2,1.2", expected: "", err: "id[in]: bad format"},
+		{url: "?id[nin]=1.2", expected: "", err: "id[nin]: bad format"},
+		{url: "?id[nin]=1.2,1.2", expected: "", err: "id[nin]: bad format"},
 		{url: "?id[test]=1", expected: "", err: "id[test]: unknown method"},
 		{url: "?id[like]=1", expected: "", err: "id[like]: method are not allowed"},
 		{url: "?id=1,2", expected: "", err: "id: method are not allowed"},
@@ -219,6 +221,7 @@ func TestWhere(t *testing.T) {
 
 		{url: "?id=100", err: "id: can't be greater then 10"},
 		{url: "?id[in]=100,200", err: "id[in]: can't be greater then 10"},
+		{url: "?id[nin]=100,200", err: "id[nin]: can't be greater then 10"},
 
 		// not like, not ilike:
 		{url: "?u[nlike]=superman", expected: " WHERE u NOT LIKE ?"},
@@ -229,6 +232,8 @@ func TestWhere(t *testing.T) {
 		{url: "?s=super", expected: " WHERE s = ?"},
 		{url: "?s[in]=super,puper", err: "s[in]: puper: not in scope"},
 		{url: "?s[in]=super,best", expected: " WHERE s IN (?, ?)"},
+		{url: "?s[nin]=super,puper", err: "s[nin]: puper: not in scope"},
+		{url: "?s[nin]=super,best", expected: " WHERE s NOT IN (?, ?)"},
 		{url: "?s=puper", expected: "", err: "s: puper: not in scope"},
 		{url: "?u=puper", expected: " WHERE u = ?"},
 		{url: "?u[eq]=1,2", expected: "", err: "u[eq]: method are not allowed"},

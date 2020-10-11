@@ -210,7 +210,7 @@ func (f *Filter) Where() (string, error) {
 			return exp, nil
 		}
 		return exp, ErrUnknownMethod
-	case IN:
+	case IN, NIN:
 		exp = fmt.Sprintf("%s %s (?)", f.Name, translateMethods[f.Method])
 		exp, _, _ = in(exp, f.Value)
 		return exp, nil
@@ -244,7 +244,7 @@ func (f *Filter) Args() ([]interface{}, error) {
 		}
 		args = append(args, value)
 		return args, nil
-	case IN:
+	case IN, NIN:
 		_, params, _ := in("?", f.Value)
 		args = append(args, params...)
 		return args, nil
@@ -256,7 +256,7 @@ func (f *Filter) Args() ([]interface{}, error) {
 func (f *Filter) setInt(list []string) error {
 	if len(list) == 1 {
 		switch f.Method {
-		case EQ, NE, GT, LT, GTE, LTE, IN:
+		case EQ, NE, GT, LT, GTE, LTE, IN, NIN:
 			i, err := strconv.Atoi(list[0])
 			if err != nil {
 				return ErrBadFormat
@@ -266,7 +266,7 @@ func (f *Filter) setInt(list []string) error {
 			return ErrMethodNotAllowed
 		}
 	} else {
-		if f.Method != IN {
+		if f.Method != IN && f.Method != NIN {
 			return ErrMethodNotAllowed
 		}
 		intSlice := make([]int, len(list))
@@ -302,7 +302,7 @@ func (f *Filter) setBool(list []string) error {
 func (f *Filter) setString(list []string) error {
 	if len(list) == 1 {
 		switch f.Method {
-		case EQ, NE, GT, LT, GTE, LTE, LIKE, ILIKE, NLIKE, NILIKE, IN:
+		case EQ, NE, GT, LT, GTE, LTE, LIKE, ILIKE, NLIKE, NILIKE, IN, NIN:
 			f.Value = list[0]
 			return nil
 		case IS, NOT:
@@ -315,7 +315,7 @@ func (f *Filter) setString(list []string) error {
 		}
 	} else {
 		switch f.Method {
-		case IN:
+		case IN, NIN:
 			f.Value = list
 			return nil
 		}
