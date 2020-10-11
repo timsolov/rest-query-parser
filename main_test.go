@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"testing"
 
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pkg/errors"
 
 	"github.com/stretchr/testify/assert"
@@ -219,6 +220,10 @@ func TestWhere(t *testing.T) {
 		{url: "?id=100", err: "id: can't be greater then 10"},
 		{url: "?id[in]=100,200", err: "id[in]: can't be greater then 10"},
 
+		// not like, not ilike:
+		{url: "?u[nlike]=superman", expected: " WHERE u NOT LIKE ?"},
+		{url: "?u[nilike]=superman", expected: " WHERE u NOT ILIKE ?"},
+
 		{url: "?id=1&name=superman", expected: " WHERE id = ?", ignore: true},
 		{url: "?id=1&name=superman&s[like]=super", expected: " WHERE id = ? AND s LIKE ?", expected2: " WHERE s LIKE ? AND id = ?", ignore: true},
 		{url: "?s=super", expected: " WHERE s = ?"},
@@ -227,12 +232,14 @@ func TestWhere(t *testing.T) {
 		{url: "?s=puper", expected: "", err: "s: puper: not in scope"},
 		{url: "?u=puper", expected: " WHERE u = ?"},
 		{url: "?u[eq]=1,2", expected: "", err: "u[eq]: method are not allowed"},
-		{url: "?u[gt]=1", expected: "", err: "u[gt]: method are not allowed"},
+		{url: "?u[gt]=1", expected: " WHERE u > ?"},
 		{url: "?id[in]=1,2", expected: " WHERE id IN (?, ?)"},
 		{url: "?id[eq]=1&id[eq]=4", expected: " WHERE id = ? AND id = ?"},
 		{url: "?id[gte]=1&id[lte]=4", expected: " WHERE id >= ? AND id <= ?", expected2: " WHERE id <= ? AND id >= ?"},
 		{url: "?id[gte]=1|id[lte]=4", expected: " WHERE (id >= ? OR id <= ?)", expected2: " WHERE (id <= ? OR id >= ?)"},
+		// null:
 		{url: "?u[not]=NULL", expected: " WHERE u IS NOT NULL"},
+		{url: "?u[is]=NULL", expected: " WHERE u IS NULL"},
 		// bool:
 		{url: "?b=true", expected: " WHERE b = ?"},
 		{url: "?b=true1", err: "b: bad format"},
@@ -337,13 +344,12 @@ func TestArgs(t *testing.T) {
 	}).Parse()
 	assert.NoError(t, err)
 
-	assert.Len(t, q.Args(), 6)
+	assert.Len(t, q.Args(), 5)
 	assert.Contains(t, q.Args(), 123)
 	assert.Contains(t, q.Args(), "test")
 	assert.Contains(t, q.Args(), "%www%")
 	assert.Contains(t, q.Args(), "www1")
 	assert.Contains(t, q.Args(), "www2")
-	assert.Contains(t, q.Args(), "NULL")
 }
 
 func TestSQL(t *testing.T) {
@@ -477,4 +483,78 @@ func TestRemoveValidation(t *testing.T) {
 	// remove typed validation
 	q.AddValidation("name:string", In("id"))
 	assert.NoError(t, q.RemoveValidation("name"))
+}
+
+func Test_RemoveFilter(t *testing.T) {
+	t.Run("?id[eq]=10|id[eq]=11", func(t *testing.T) {
+		q := New()
+		q.SetValidations(Validations{
+			"id:int": nil,
+			"u:int":  nil,
+		})
+		assert.NoError(t, q.SetUrlString("?id[eq]=10|id[eq]=11"))
+		assert.NoError(t, q.Parse())
+		assert.NoError(t, q.RemoveFilter("id"))
+		assert.Equal(t, "SELECT * FROM test", q.SQL("test"))
+	})
+}
+
+func Test_MultipleUsageOfUniqueFilters(t *testing.T) {
+
+	q := New()
+	q.SetValidations(Validations{
+		"id:int": nil,
+		"u:int":  nil,
+	})
+	assert.NoError(t, q.SetUrlString("?id[eq]=10|u[eq]=10&id[eq]=11|u[eq]=11"))
+	assert.NoError(t, q.Parse())
+	assert.Equal(t, "SELECT * FROM test WHERE (id = ? OR u = ?) AND (id = ? OR u = ?)", q.SQL("test"))
+	t.Log(q.SQL("test"))
+}
+
+func Test_Date(t *testing.T) {
+
+	q := New()
+
+	q.SetValidations(Validations{
+		"created_at": func(v interface{}) error {
+			s, ok := v.(string)
+			if !ok {
+				return ErrBadFormat
+			}
+			return validation.Validate(s, validation.Date("2006-01-02"))
+		},
+	})
+
+	cases := []struct {
+		uri      string
+		variant1 string
+		variant2 string
+	}{
+		{
+			uri:      "?created_at[eq]=2020-10-02",
+			variant1: "SELECT * FROM test WHERE DATE(created_at) = ?",
+		},
+		{
+			uri:      "?created_at[gt]=2020-10-01&created_at[lt]=2020-10-03",
+			variant1: "SELECT * FROM test WHERE DATE(created_at) > ? AND DATE(created_at) < ?",
+			variant2: "SELECT * FROM test WHERE DATE(created_at) < ? AND DATE(created_at) > ?",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.uri, func(t *testing.T) {
+			q.SetUrlString(tc.uri)
+			assert.NoError(t, q.Parse())
+			q.ReplaceNames(Replacer{"created_at": "DATE(created_at)"})
+			query := q.SQL("test")
+			assert.Condition(t, func() bool {
+				if tc.variant1 != query && tc.variant2 != query {
+					t.Log(query)
+					return false
+				}
+				return true
+			})
+		})
+	}
 }

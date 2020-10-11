@@ -6,13 +6,22 @@ import (
 	"strings"
 )
 
+type StateOR byte
+
+const (
+	NoOR StateOR = iota
+	StartOR
+	InOR
+	EndOR
+)
+
 // Filter represents a filter defined in the query part of URL
 type Filter struct {
 	Key    string // key from URL (eg. "id[eq]")
 	Name   string // name of filter, takes from Key (eg. "id")
 	Method Method // compare method, takes from Key (eg. EQ)
 	Value  interface{}
-	Or     bool
+	OR     StateOR
 }
 
 // detectValidation
@@ -192,10 +201,10 @@ func (f *Filter) Where() (string, error) {
 	var exp string
 
 	switch f.Method {
-	case EQ, NE, GT, LT, GTE, LTE, LIKE, ILIKE:
+	case EQ, NE, GT, LT, GTE, LTE, LIKE, ILIKE, NLIKE, NILIKE:
 		exp = fmt.Sprintf("%s %s ?", f.Name, translateMethods[f.Method])
 		return exp, nil
-	case NOT:
+	case IS, NOT:
 		if f.Value == NULL {
 			exp = fmt.Sprintf("%s %s NULL", f.Name, translateMethods[f.Method])
 			return exp, nil
@@ -219,13 +228,13 @@ func (f *Filter) Args() ([]interface{}, error) {
 	case EQ, NE, GT, LT, GTE, LTE:
 		args = append(args, f.Value)
 		return args, nil
-	case NOT:
+	case IS, NOT:
 		if f.Value == NULL {
 			args = append(args, f.Value)
 			return args, nil
 		}
 		return nil, ErrUnknownMethod
-	case LIKE, ILIKE:
+	case LIKE, ILIKE, NLIKE, NILIKE:
 		value := f.Value.(string)
 		if len(value) >= 2 && strings.HasPrefix(value, "*") {
 			value = "%" + value[1:]
@@ -246,21 +255,16 @@ func (f *Filter) Args() ([]interface{}, error) {
 
 func (f *Filter) setInt(list []string) error {
 	if len(list) == 1 {
-		if f.Method != EQ &&
-			f.Method != NE &&
-			f.Method != GT &&
-			f.Method != LT &&
-			f.Method != GTE &&
-			f.Method != LTE &&
-			f.Method != IN {
+		switch f.Method {
+		case EQ, NE, GT, LT, GTE, LTE, IN:
+			i, err := strconv.Atoi(list[0])
+			if err != nil {
+				return ErrBadFormat
+			}
+			f.Value = i
+		default:
 			return ErrMethodNotAllowed
 		}
-
-		i, err := strconv.Atoi(list[0])
-		if err != nil {
-			return ErrBadFormat
-		}
-		f.Value = i
 	} else {
 		if f.Method != IN {
 			return ErrMethodNotAllowed
@@ -298,10 +302,10 @@ func (f *Filter) setBool(list []string) error {
 func (f *Filter) setString(list []string) error {
 	if len(list) == 1 {
 		switch f.Method {
-		case EQ, NE, LIKE, ILIKE, IN:
+		case EQ, NE, GT, LT, GTE, LTE, LIKE, ILIKE, NLIKE, NILIKE, IN:
 			f.Value = list[0]
 			return nil
-		case NOT:
+		case IS, NOT:
 			if strings.Compare(strings.ToUpper(list[0]), NULL) == 0 {
 				f.Value = NULL
 				return nil
