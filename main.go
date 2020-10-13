@@ -45,6 +45,7 @@ var (
 	IS     Method = "IS"
 	NOT    Method = "NOT"
 	IN     Method = "IN"
+	NIN    Method = "NIN"
 )
 
 // NULL constant
@@ -65,6 +66,7 @@ var (
 		IS:     "IS",
 		NOT:    "IS NOT",
 		IN:     "IN",
+		NIN:    "NOT IN",
 	}
 )
 
