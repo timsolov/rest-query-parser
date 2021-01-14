@@ -6,7 +6,6 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pkg/errors"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -562,4 +561,12 @@ func Test_Date(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestQuery_AddFilterRaw(t *testing.T) {
+	q := New().AddFilter("test", EQ, "ok")
+	q.AddFilterRaw("file_id != 'ec34d3b8-3013-43ee-ad7b-1d5d4a6d7213'")
+	assert.Len(t, q.Filters, 2)
+	assert.True(t, q.HaveFilter("test"))
+	assert.Equal(t, "test = ? AND file_id != 'ec34d3b8-3013-43ee-ad7b-1d5d4a6d7213'", q.Where())
 }

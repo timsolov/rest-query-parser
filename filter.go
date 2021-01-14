@@ -214,6 +214,8 @@ func (f *Filter) Where() (string, error) {
 		exp = fmt.Sprintf("%s %s (?)", f.Name, translateMethods[f.Method])
 		exp, _, _ = in(exp, f.Value)
 		return exp, nil
+	case raw:
+		return f.Name, nil
 	default:
 		return exp, ErrUnknownMethod
 	}
@@ -247,6 +249,8 @@ func (f *Filter) Args() ([]interface{}, error) {
 	case IN, NIN:
 		_, params, _ := in("?", f.Value)
 		args = append(args, params...)
+		return args, nil
+	case raw:
 		return args, nil
 	default:
 		return nil, ErrUnknownMethod
