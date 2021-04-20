@@ -389,7 +389,7 @@ func (q *Query) Where() string {
 		} else if filter.OR == EndOR {
 			prefix = " OR "
 			suffix = ")"
-		} else if i > 0 {
+		} else if i > 0 && len(where) > 0 {
 			prefix = " AND "
 		}
 

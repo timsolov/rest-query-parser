@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
@@ -569,4 +570,10 @@ func TestQuery_AddFilterRaw(t *testing.T) {
 	assert.Len(t, q.Filters, 2)
 	assert.True(t, q.HaveFilter("test"))
 	assert.Equal(t, "test = ? AND file_id != 'ec34d3b8-3013-43ee-ad7b-1d5d4a6d7213'", q.Where())
+}
+
+func TestEmptySliceFilterWithAnotherFilter(t *testing.T) {
+	q := New().AddFilter("id", IN, []string{})
+	q.AddFilter("another_id", EQ, uuid.New().String())
+	t.Log(q.SQL("test"))
 }
