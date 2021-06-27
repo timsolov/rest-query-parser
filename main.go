@@ -268,7 +268,36 @@ func (q *Query) RemoveFilter(name string) error {
 	var found bool
 	for i := 0; i < len(q.Filters); i++ {
 		v := q.Filters[i]
+
+		// set next and previous Filter
+		var next, prev *Filter
+		if i+1 < len(q.Filters) {
+			next = q.Filters[i+1]
+		} else {
+			next = nil
+		}
+		if i-1 >= 0 {
+			prev = q.Filters[i-1]
+		} else {
+			prev = nil
+		}
+
 		if v.Name == name {
+			// special cases for removing filters in OR statement
+			if v.OR == StartOR && next != nil {
+				if next.OR == EndOR {
+					next.OR = NoOR
+				} else {
+					next.OR = StartOR
+				}
+			} else if v.OR == EndOR && prev != nil {
+				if prev.OR == StartOR {
+					prev.OR = NoOR
+				} else {
+					prev.OR = EndOR
+				}
+			}
+
 			// safe remove element from slice
 			if i < len(q.Filters)-1 {
 				copy(q.Filters[i:], q.Filters[i+1:])
