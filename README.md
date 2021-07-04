@@ -7,6 +7,13 @@ Query Parser is a library for easy building dynamic SQL queries to Database. It 
 ## Installation
     go get -u github.com/timsolov/rest-query-parser
 
+## Idea
+
+The idia to write this library comes to me after reading this article: 
+[REST API Design: Filtering, Sorting, and Pagination](https://www.moesif.com/blog/technical/api-design/REST-API-Design-Filtering-Sorting-and-Pagination/).
+
+And principles enumerated in article I considered very useful and practical to use in our project with amount of listings with different filtering.
+
 ## Fast start
 See cmd/main.go and tests for more examples.
 
