@@ -84,6 +84,42 @@ func MinMax(min, max int) ValidationFunc {
 	}
 }
 
+// MinFloat validation if value greater or equal then min
+func MinFloat(min float32) ValidationFunc {
+	return func(value interface{}) error {
+		if limit, ok := value.(float32); ok {
+			if limit >= min {
+				return nil
+			}
+		}
+		return errors.Wrapf(ErrNotInScope, "%v", value)
+	}
+}
+
+// MaxFloat validation if value lower or equal then max
+func MaxFloat(max float32) ValidationFunc {
+	return func(value interface{}) error {
+		if limit, ok := value.(float32); ok {
+			if limit <= max {
+				return nil
+			}
+		}
+		return errors.Wrapf(ErrNotInScope, "%v", value)
+	}
+}
+
+// MinMaxFloat validation if value between or equal min and max
+func MinMaxFloat(min, max float32) ValidationFunc {
+	return func(value interface{}) error {
+		if limit, ok := value.(float32); ok {
+			if min <= limit && limit <= max {
+				return nil
+			}
+		}
+		return errors.Wrapf(ErrNotInScope, "%v", value)
+	}
+}
+
 // NotEmpty validation if string value length more then 0
 func NotEmpty() ValidationFunc {
 	return func(value interface{}) error {

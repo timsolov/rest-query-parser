@@ -53,6 +53,8 @@ func detectType(name string, validations Validations) string {
 				switch split[1] {
 				case "int", "i":
 					return "int"
+				case "float", "f":
+					return "float"
 				case "bool", "b":
 					return "bool"
 				default:
@@ -181,6 +183,11 @@ func (f *Filter) parseValue(valueType string, value string, delimiter string) er
 		if err != nil {
 			return err
 		}
+	case "float":
+		err := f.setFloat(list)
+		if err != nil {
+			return err
+		}
 	case "bool":
 		err := f.setBool(list)
 		if err != nil {
@@ -282,6 +289,35 @@ func (f *Filter) setInt(list []string) error {
 			intSlice[i] = v
 		}
 		f.Value = intSlice
+	}
+	return nil
+}
+
+func (f *Filter) setFloat(list []string) error {
+	if len(list) == 1 {
+		switch f.Method {
+		case EQ, NE, GT, LT, GTE, LTE, IN, NIN:
+			i, err := strconv.ParseFloat(list[0], 32)
+			if err != nil {
+				return ErrBadFormat
+			}
+			f.Value = float32(i)
+		default:
+			return ErrMethodNotAllowed
+		}
+	} else {
+		if f.Method != IN && f.Method != NIN {
+			return ErrMethodNotAllowed
+		}
+		floatSlice := make([]float32, len(list))
+		for i, s := range list {
+			v, err := strconv.ParseFloat(s, 32)
+			if err != nil {
+				return ErrBadFormat
+			}
+			floatSlice[i] = float32(v)
+		}
+		f.Value = floatSlice
 	}
 	return nil
 }

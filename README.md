@@ -41,6 +41,12 @@ See cmd/main.go and tests for more examples.
                 }
                 return errors.New("i: must be greater then 1 and lower then 10")
             },
+            "f:float": func(value interface{}) error {
+                if value.(float32) > 1.0 && value.(float32) < 10.0 {
+                    return nil
+                }
+                return errors.New("f: must be greater then 1.0 and lower then 10.0")
+            },
             "email": nil,
             "name":  nil,
         })
@@ -68,11 +74,13 @@ See cmd/main.go and tests for more examples.
 ## Validation modificators:
 * `:required` - parameter is required. Must present in the query string. Raise error if not.
 * `:int` - parameter must be convertable to int type. Raise error if not.
+* `:float` - parameter must be convertable to float32 type. Raise error if not.
 * `:bool` - parameter must be convertable to bool type. Raise error if not.
 
 ## Supported types
 - `string` - the default type for all provided filters if not specified another. Could be compared by `eq, ne, gt, lt, gte, lte, like, ilike, nlike, nilike, in, nin, is, not` methods (`nlike, nilike` means `NOT LIKE, NOT ILIKE` respectively, `in, nin` means `IN, NOT IN` respectively, `is, not` for comparison to NULL `IS NULL, IS NOT NULL`).
 - `int` - integer type. Must be specified with tag ":int". Could be compared by `eq, ne, gt, lt, gte, lte, in, nin` methods.
+- `float` - integer type. Must be specified with tag ":float". Could be compared by `eq, ne, gt, lt, gte, lte, in, nin` methods. However, avoid the `eq, ne, in, nin` methods.
 - `bool` - boolean type. Must be specified with tag ":bool". Could be compared by `eq` method.
 
 ## Date usage
