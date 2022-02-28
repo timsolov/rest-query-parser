@@ -252,6 +252,35 @@ func (q *Query) AddFilter(name string, m Method, value interface{}) *Query {
 	return q
 }
 
+// AddORFilters adds multiple filter into one `OR` statement inside parenteses.
+// E.g. (firstname ILIKE ? OR lastname ILIKE ?)
+func (q *Query) AddORFilters(fn func(query *Query)) *Query {
+	_q := New()
+
+	fn(_q)
+
+	if len(_q.Filters) < 2 {
+		return q
+	}
+
+	firstIdx := 0
+	lastIdx := len(_q.Filters) - 1
+
+	for i := 0; i < len(_q.Filters); i++ {
+		switch i {
+		case firstIdx:
+			_q.Filters[i].OR = StartOR
+		case lastIdx:
+			_q.Filters[i].OR = EndOR
+		default:
+			_q.Filters[i].OR = InOR
+		}
+	}
+
+	q.Filters = append(q.Filters, _q.Filters...)
+	return q
+}
+
 // AddFilterRaw adds a filter to Query as SQL condition.
 // This function supports only single condition per one call.
 // If you'd like add more then one conditions you should call this func several times.

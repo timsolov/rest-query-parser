@@ -577,3 +577,37 @@ func TestEmptySliceFilterWithAnotherFilter(t *testing.T) {
 	q.AddFilter("another_id", EQ, uuid.New().String())
 	t.Log(q.SQL("test"))
 }
+
+func TestQuery_AddORFilters(t *testing.T) {
+	t.Run("2 OR conditions", func(t *testing.T) {
+		q := New().AddFilter("test", EQ, "ok")
+		q.AddORFilters(func(query *Query) {
+			query.AddFilter("firstname", ILIKE, "*hello*")
+			query.AddFilter("lastname", ILIKE, "*hello*")
+		})
+		out := q.SQL("table")
+		t.Log(out)
+		assert.Equal(t, `SELECT * FROM table WHERE test = ? AND (firstname ILIKE ? OR lastname ILIKE ?)`, out)
+	})
+
+	t.Run("3 OR conditions", func(t *testing.T) {
+		q := New().AddFilter("test", EQ, "ok")
+		q.AddORFilters(func(query *Query) {
+			query.AddFilter("firstname", ILIKE, "*hello*")
+			query.AddFilter("lastname", ILIKE, "*hello*")
+			query.AddFilter("email", ILIKE, "*hello*")
+		})
+		out := q.SQL("table")
+		t.Log(out)
+		assert.Equal(t, `SELECT * FROM table WHERE test = ? AND (firstname ILIKE ? OR lastname ILIKE ? OR email ILIKE ?)`, out)
+	})
+}
+
+func ExampleQuery_AddORFilters() {
+	q := New().AddFilter("test", EQ, "ok")
+	q.AddORFilters(func(query *Query) {
+		query.AddFilter("firstname", ILIKE, "*hello*")
+		query.AddFilter("lastname", ILIKE, "*hello*")
+	})
+	q.SQL("table") // SELECT * FROM table WHERE test = ? AND (firstname ILIKE ? OR lastname ILIKE ?)
+}
