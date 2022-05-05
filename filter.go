@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/araddon/dateparse"
 )
 
 type StateOR byte
@@ -53,8 +56,16 @@ func detectType(name string, validations Validations) string {
 				switch split[1] {
 				case "int", "i":
 					return "int"
+				case "float", "f":
+					return "float"
 				case "bool", "b":
 					return "bool"
+				case "time", "t":
+					return "time"
+				case "custom", "c":
+					return "custom"
+				case "json", "j":
+					return "json"
 				default:
 					return "string"
 				}
@@ -186,6 +197,21 @@ func (f *Filter) parseValue(valueType string, value string, delimiter string) er
 		if err != nil {
 			return err
 		}
+	case "float":
+		err := f.setFloat(list)
+		if err != nil {
+			return err
+		}
+	case "custom", "json":
+		err := f.setCustom(list)
+		if err != nil {
+			return err
+		}
+	case "time":
+		err := f.setTime(list)
+		if err != nil {
+			return err
+		}
 	default: // str, string and all other unknown types will handle as string
 		err := f.setString(list)
 		if err != nil {
@@ -194,6 +220,45 @@ func (f *Filter) parseValue(valueType string, value string, delimiter string) er
 	}
 
 	return nil
+}
+
+func GetProperty(name string, v Validations) string {
+	elems := strings.Split(name, ".")
+	if len(elems) > 1 {
+		innerType := detectType(elems[0], v)
+		outerType := detectType(name, v)
+		if innerType == "custom" {
+			elems[0] = fmt.Sprintf("row_to_json(%s)", elems[0])
+		}
+		return getPropertyHelper(outerType, elems...)
+	} else {
+		return name
+	}
+}
+
+func getPropertyHelper(outerType string, elems ...string) string {
+	if len(elems) == 1 {
+		switch outerType {
+		case "custom", "json":
+			return elems[0]
+		case "string":
+			return fmt.Sprintf("%s::text", elems[0])
+		case "bool":
+			return fmt.Sprintf("%s::text::boolean", elems[0])
+		case "time":
+			return fmt.Sprintf("%s::text::timestamp with time zone", elems[0])
+		// int, float
+		default:
+			return fmt.Sprintf("%s::text::%s", elems[0], outerType)
+		}
+	}
+	newElems := []string{
+		fmt.Sprintf("json_extract_path(json_strip_nulls(%s), '%s')", elems[0], elems[1]),
+	}
+	if len(elems) > 2 {
+		newElems = append(newElems, elems[2:]...)
+	}
+	return getPropertyHelper(outerType, newElems...)
 }
 
 // Where returns condition expression
@@ -286,6 +351,35 @@ func (f *Filter) setInt(list []string) error {
 	return nil
 }
 
+func (f *Filter) setFloat(list []string) error {
+	if len(list) == 1 {
+		switch f.Method {
+		case EQ, NE, GT, LT, GTE, LTE, IN, NIN:
+			i, err := strconv.ParseFloat(list[0], 64)
+			if err != nil {
+				return ErrBadFormat
+			}
+			f.Value = i
+		default:
+			return ErrMethodNotAllowed
+		}
+	} else {
+		if f.Method != IN && f.Method != NIN {
+			return ErrMethodNotAllowed
+		}
+		floatSlice := make([]float64, len(list))
+		for i, s := range list {
+			v, err := strconv.ParseFloat(s, 64)
+			if err != nil {
+				return ErrBadFormat
+			}
+			floatSlice[i] = v
+		}
+		f.Value = floatSlice
+	}
+	return nil
+}
+
 func (f *Filter) setBool(list []string) error {
 	if len(list) == 1 {
 		if f.Method != EQ {
@@ -308,6 +402,47 @@ func (f *Filter) setString(list []string) error {
 		switch f.Method {
 		case EQ, NE, GT, LT, GTE, LTE, LIKE, ILIKE, NLIKE, NILIKE, IN, NIN:
 			f.Value = list[0]
+			return nil
+		case IS, NOT:
+			if strings.Compare(strings.ToUpper(list[0]), NULL) == 0 {
+				f.Value = NULL
+				return nil
+			}
+		default:
+			return ErrMethodNotAllowed
+		}
+	} else {
+		switch f.Method {
+		case IN, NIN:
+			f.Value = list
+			return nil
+		}
+	}
+	return ErrMethodNotAllowed
+}
+
+func (f *Filter) setCustom(list []string) error {
+	if len(list) == 1 {
+		switch f.Method {
+		case IS, NOT:
+			if strings.Compare(strings.ToUpper(list[0]), NULL) == 0 {
+				f.Value = NULL
+				return nil
+			}
+		}
+	}
+	return ErrMethodNotAllowed
+}
+
+func (f *Filter) setTime(list []string) error {
+	if len(list) == 1 {
+		switch f.Method {
+		case EQ, NE, GT, LT, GTE, LTE, IN, NIN:
+			t, err := dateparse.ParseAny(list[0])
+			if err != nil {
+				return ErrBadFormat
+			}
+			f.Value = t.UTC().Format(time.RFC3339)
 			return nil
 		case IS, NOT:
 			if strings.Compare(strings.ToUpper(list[0]), NULL) == 0 {
