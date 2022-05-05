@@ -8,17 +8,26 @@ import (
 )
 
 func TestIn(t *testing.T) {
-	err := In("one", "two")("three")
+	err := InString("one", "two")("three")
 	assert.Equal(t, errors.Cause(err), ErrNotInScope)
 	assert.EqualError(t, err, "three: not in scope")
 
-	err = In(1, 2)(3)
+	err = InInt(1, 2)(3)
 	assert.Equal(t, errors.Cause(err), ErrNotInScope)
 	assert.EqualError(t, err, "3: not in scope")
 
-	err = In(true)(false)
+	err = InBool(true)(false)
 	assert.Equal(t, errors.Cause(err), ErrNotInScope)
 	assert.EqualError(t, err, "false: not in scope")
+
+	err = InString("one", "two")("one")
+	assert.NoError(t, err)
+
+	err = InInt(1, 2)(1)
+	assert.NoError(t, err)
+
+	err = InBool(true)(true)
+	assert.NoError(t, err)
 }
 
 func TestMinMax(t *testing.T) {
@@ -52,7 +61,6 @@ func TestMinMax(t *testing.T) {
 	err = MinMax(10, 100)("one")
 	assert.Equal(t, errors.Cause(err), ErrNotInScope)
 	assert.EqualError(t, err, "one: not in scope")
-
 }
 
 func TestNotEmpty(t *testing.T) {

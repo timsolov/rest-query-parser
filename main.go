@@ -245,7 +245,7 @@ func (q *Query) HaveFilter(name string) bool {
 // AddFilter adds a filter to Query
 func (q *Query) AddFilter(name string, m Method, value interface{}) *Query {
 	q.Filters = append(q.Filters, &Filter{
-		Name:   name,
+		Name:   getProperty(name, q.validations),
 		Method: m,
 		Value:  value,
 	})
@@ -719,10 +719,50 @@ func (q *Query) parseFilter(key, value string) error {
 			return errors.Wrap(err, key)
 		}
 
+		filter.Name = getProperty(filter.Name, q.validations)
 		q.Filters = append(q.Filters, filter)
 	}
 
 	return nil
+}
+
+func getProperty(name string, v Validations) string {
+	elems := strings.Split(name, ".")
+	if len(elems) > 1 {
+		innerType := detectType(elems[0], v)
+		outerType := detectType(name, v)
+		if innerType == "custom" {
+			elems[0] = fmt.Sprintf("row_to_json(%s)", elems[0])
+		}
+		return getPropertyHelper(outerType, elems...)
+	} else {
+		return name
+	}
+}
+
+func getPropertyHelper(outerType string, elems ...string) string {
+	if len(elems) == 1 {
+		switch outerType {
+		case "custom", "json":
+			return elems[0]
+		case "string":
+			return fmt.Sprintf("%s::text", elems[0])
+		case "bool":
+			return fmt.Sprintf("%s::text::boolean", elems[0])
+		case "time":
+			return fmt.Sprintf("%s::text::timestamp with time zone", elems[0])
+		// int, float
+		default:
+			return fmt.Sprintf("%s::text::%s", elems[0], outerType)
+		}
+	}
+	newElems := []string{
+		fmt.Sprintf("json_extract_path(json_strip_nulls(%s), '%s')", elems[0], elems[1]),
+	}
+	if len(elems) > 2 {
+		newElems = append(newElems, elems[2:]...)
+	}
+	return getPropertyHelper(outerType, newElems...)
 }
 
 // clean the filters slice
