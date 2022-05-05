@@ -25,11 +25,11 @@ func Multi(values ...ValidationFunc) ValidationFunc {
 }
 
 // In validation if values contatin value
-func In(values ...interface{}) ValidationFunc {
+func In(values ...string) ValidationFunc {
 	return func(value interface{}) error {
 
 		var (
-			v  interface{}
+			v  string
 			in bool = false
 		)
 
