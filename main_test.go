@@ -64,7 +64,7 @@ func TestGetFilter(t *testing.T) {
 func TestFields(t *testing.T) {
 
 	// mockValidation := func(value interface{}) error { return nil }
-	validate := In("id", "name")
+	validate := InString("id", "name")
 
 	// Fields:
 	cases := []struct {
@@ -174,13 +174,13 @@ func TestSort(t *testing.T) {
 		t.Run(c.url, func(t *testing.T) {
 			URL, err := url.Parse(c.url)
 			assert.NoError(t, err)
-			q, err := NewParse(URL.Query(), Validations{"sort": In("id", "name")})
+			q, err := NewParse(URL.Query(), Validations{"sort": InString("id", "name")})
 			assert.Equal(t, c.err, err)
 			assert.Equal(t, c.expected, q.ORDER())
 		})
 	}
 
-	q := New().SetValidations(Validations{"sort": In("id")})
+	q := New().SetValidations(Validations{"sort": InString("id")})
 	err := q.SetUrlString("://")
 	assert.Error(t, err)
 
@@ -263,7 +263,7 @@ func TestWhere(t *testing.T) {
 					}
 					return nil
 				},
-				"s": In(
+				"s": InString(
 					"super",
 					"best",
 				),
@@ -302,7 +302,7 @@ func TestWhere2(t *testing.T) {
 			}
 			return nil
 		},
-		"s": In(
+		"s": InString(
 			"super",
 			"best",
 		),
@@ -340,8 +340,8 @@ func TestArgs(t *testing.T) {
 	assert.NoError(t, err)
 
 	err = q.SetUrlQuery(URL.Query()).SetValidations(Validations{
-		"fields":  In("id", "status"),
-		"sort":    In("id"),
+		"fields":  InString("id", "status"),
+		"sort":    InString("id"),
 		"one:int": nil,
 		"two":     nil,
 		"three":   nil,
@@ -362,8 +362,8 @@ func TestSQL(t *testing.T) {
 	assert.NoError(t, err)
 
 	q := New().SetUrlQuery(URL.Query()).
-		AddValidation("fields", In("id", "status")).
-		AddValidation("sort", In("id"))
+		AddValidation("fields", InString("id", "status")).
+		AddValidation("sort", InString("id"))
 	q.IgnoreUnknownFilters(true)
 	err = q.Parse()
 	assert.NoError(t, err)
@@ -381,8 +381,8 @@ func TestReplaceFiltersNames(t *testing.T) {
 	assert.NoError(t, err)
 
 	q, err := NewParse(URL.Query(), Validations{
-		"fields":  In("one", "another", "two"),
-		"sort":    In("one", "another", "two"),
+		"fields":  InString("one", "another", "two"),
+		"sort":    InString("one", "another", "two"),
 		"one":     nil,
 		"another": nil,
 	})
@@ -482,11 +482,11 @@ func TestRemoveValidation(t *testing.T) {
 	assert.EqualError(t, q.RemoveValidation("fields"), ErrValidationNotFound.Error())
 
 	// remove plain validation
-	q.AddValidation("fields", In("id"))
+	q.AddValidation("fields", InString("id"))
 	assert.NoError(t, q.RemoveValidation("fields"))
 
 	// remove typed validation
-	q.AddValidation("name:string", In("id"))
+	q.AddValidation("name:string", InString("id"))
 	assert.NoError(t, q.RemoveValidation("name"))
 }
 
