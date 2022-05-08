@@ -614,9 +614,6 @@ func (q *Query) Parse() (err error) {
 		}
 	}
 
-	// support for nesting
-	q.enhanceFilters(q.validations)
-
 	return nil
 }
 
@@ -775,16 +772,6 @@ func (q *Query) cleanFilters() {
 			q.Filters[i] = nil
 		}
 		q.Filters = nil
-	}
-}
-
-func (q *Query) enhanceFilters(v Validations) {
-	if len(q.Filters) > 0 {
-		for _, f := range q.Filters {
-			q.ReplaceNames(Replacer{
-				f.Name: GetProperty(f.Name, v),
-			})
-		}
 	}
 }
 
