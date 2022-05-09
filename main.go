@@ -244,8 +244,12 @@ func (q *Query) HaveFilter(name string) bool {
 
 // AddFilter adds a filter to Query
 func (q *Query) AddFilter(name string, m Method, value interface{}) *Query {
+	name, err := getFilterName(name, q.validations)
+	if err != nil {
+		panic(err)
+	}
 	q.Filters = append(q.Filters, &Filter{
-		Name:   getProperty(name, q.validations),
+		Name:   name,
 		Method: m,
 		Value:  value,
 	})
@@ -719,28 +723,45 @@ func (q *Query) parseFilter(key, value string) error {
 			return errors.Wrap(err, key)
 		}
 
-		filter.Name = getProperty(filter.Name, q.validations)
+		newName, err := getFilterName(filter.Name, q.validations)
+		if err != nil {
+			return err
+		}
+		filter.Name = newName
 		q.Filters = append(q.Filters, filter)
 	}
 
 	return nil
 }
 
-func getProperty(name string, v Validations) string {
+// allow support for filters on nested custom/json properties,
+// e.g. pace.pacing_strategy
+func getFilterName(name string, v Validations) (string, error) {
 	elems := strings.Split(name, ".")
+	cur := elems[0]
+	var jsonElems []string
 	if len(elems) > 1 {
-		innerType := detectType(elems[0], v)
-		outerType := detectType(name, v)
-		if innerType == "custom" {
-			elems[0] = fmt.Sprintf("row_to_json(%s)", elems[0])
+		for _, el := range elems[1:] {
+			t := detectType(cur, v)
+			if t == "custom" {
+				cur = fmt.Sprintf("%s.%s", cur, el)
+			} else if t == "json" {
+				jsonElems = append(jsonElems, cur)
+				cur = el
+			} else {
+				return "", errors.Wrap(errors.New(fmt.Sprintf("nesting filters not allowed for type %s", t)), cur)
+			}
 		}
-		return getPropertyHelper(outerType, elems...)
-	} else {
-		return name
+		jsonElems = append(jsonElems, cur)
+		if len(jsonElems) > 1 {
+			return getFilterNameJsonHelper(detectType(name, v), jsonElems...), nil
+		}
 	}
+	return cur, nil
 }
 
-func getPropertyHelper(outerType string, elems ...string) string {
+// recursive helper for extracting json
+func getFilterNameJsonHelper(outerType string, elems ...string) string {
 	if len(elems) == 1 {
 		switch outerType {
 		case "custom", "json":
@@ -762,7 +783,7 @@ func getPropertyHelper(outerType string, elems ...string) string {
 	if len(elems) > 2 {
 		newElems = append(newElems, elems[2:]...)
 	}
-	return getPropertyHelper(outerType, newElems...)
+	return getFilterNameJsonHelper(outerType, newElems...)
 }
 
 // clean the filters slice
