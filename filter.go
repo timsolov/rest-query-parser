@@ -76,7 +76,7 @@ func detectType(name string, validations Validations) (string, error) {
 		}
 	}
 
-	return "", errors.New("could not find table")
+	return "", errors.New("could not find type")
 }
 
 // detectTable

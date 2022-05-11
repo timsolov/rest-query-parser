@@ -773,25 +773,17 @@ func getFilterName(name string, v Validations) (string, error) {
 	var jsonElems []string
 	if len(elems) > 1 {
 		for _, el := range elems[1:] {
-			t, err := detectType(cur, v)
-			if err != nil {
-				return "", err
-			}
-			if t == "custom" {
-				cur = fmt.Sprintf("%s.%s", cur, el)
-			} else if t == "json" {
+			t, _ := detectType(cur, v)
+			if t == "json" {
 				jsonElems = append(jsonElems, cur)
 				cur = el
 			} else {
-				return "", errors.Wrap(errors.New(fmt.Sprintf("nesting filters not allowed for type %s", t)), cur)
+				cur = fmt.Sprintf("%s.%s", cur, el)
 			}
 		}
 		jsonElems = append(jsonElems, cur)
 		if len(jsonElems) > 1 {
-			t, err := detectType(cur, v)
-			if err != nil {
-				return "", err
-			}
+			t, _ := detectType(name, v)
 			return getFilterNameJsonHelper(t, jsonElems...), nil
 		}
 	}
