@@ -38,7 +38,7 @@ func detectValidation(name string, validations Validations) (ValidationFunc, boo
 	for k, v := range validations {
 		if strings.Contains(k, ":") {
 			split := strings.Split(k, ":")
-			if split[0] == name {
+			if split[1] == name {
 				return v, true
 			}
 		} else if k == name {
