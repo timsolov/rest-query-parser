@@ -1,6 +1,7 @@
 package rqp
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -20,11 +21,13 @@ const (
 
 // Filter represents a filter defined in the query part of URL
 type Filter struct {
-	Key    string // key from URL (eg. "id[eq]")
-	Name   string // name of filter, takes from Key (eg. "id")
-	Method Method // compare method, takes from Key (eg. EQ)
-	Value  interface{}
-	OR     StateOR
+	Key               string // key from URL (eg. "id[eq]")
+	ParameterizedName string // after applying enhancements to allow nesting
+	RawName           string // name of filter, takes from Key (eg. "id")
+	Method            Method // compare method, takes from Key (eg. EQ)
+	Value             interface{}
+	OR                StateOR
+	Table             string
 }
 
 // detectValidation
@@ -47,33 +50,48 @@ func detectValidation(name string, validations Validations) (ValidationFunc, boo
 }
 
 // detectType
-func detectType(name string, validations Validations) string {
+func detectType(name string, validations Validations) (string, error) {
 
 	for k := range validations {
 		if strings.Contains(k, ":") {
 			split := strings.Split(k, ":")
-			if split[0] == name {
-				switch split[1] {
+			if split[1] == name {
+				switch split[2] {
 				case "int", "i":
-					return "int"
+					return "int", nil
 				case "float", "f":
-					return "float"
+					return "float", nil
 				case "bool", "b":
-					return "bool"
+					return "bool", nil
 				case "time", "t":
-					return "time"
+					return "time", nil
 				case "custom", "c":
-					return "custom"
+					return "custom", nil
 				case "json", "j":
-					return "json"
+					return "json", nil
 				default:
-					return "string"
+					return "string", nil
 				}
 			}
 		}
 	}
 
-	return "string"
+	return "", errors.New("could not find table")
+}
+
+// detectTable
+func detectTable(name string, validations Validations) (string, error) {
+
+	for k := range validations {
+		if strings.Contains(k, ":") {
+			split := strings.Split(k, ":")
+			if split[1] == name {
+				return split[0], nil
+			}
+		}
+	}
+
+	return "", errors.New("could not find table")
 }
 
 func isNotNull(f *Filter) bool {
@@ -97,13 +115,16 @@ func newFilter(rawKey string, value string, delimiter string, validations Valida
 	}
 
 	// detect have we validator func definition on this parameter or not
-	validate, ok := detectValidation(f.Name, validations)
+	validate, ok := detectValidation(f.RawName, validations)
 	if !ok {
 		return nil, ErrValidationNotFound
 	}
 
 	// detect type by key names in validations
-	valueType := detectType(f.Name, validations)
+	valueType, err := detectType(f.RawName, validations)
+	if err != nil {
+		return nil, err
+	}
 
 	if err := f.parseValue(valueType, value, delimiter); err != nil {
 		return nil, err
@@ -154,7 +175,7 @@ func (f *Filter) parseKey(key string) error {
 
 	spos := strings.Index(key, "[")
 	if spos != -1 {
-		f.Name = key[:spos]
+		f.RawName = key[:spos]
 		epos := strings.Index(key[spos:], "]")
 		if epos != -1 {
 			// go inside brekets
@@ -169,7 +190,7 @@ func (f *Filter) parseKey(key string) error {
 			}
 		}
 	} else {
-		f.Name = key
+		f.RawName = key
 	}
 
 	return nil
@@ -228,20 +249,20 @@ func (f *Filter) Where() (string, error) {
 
 	switch f.Method {
 	case EQ, NE, GT, LT, GTE, LTE, LIKE, ILIKE, NLIKE, NILIKE:
-		exp = fmt.Sprintf("%s %s ?", f.Name, translateMethods[f.Method])
+		exp = fmt.Sprintf("%s %s ?", f.ParameterizedName, translateMethods[f.Method])
 		return exp, nil
 	case IS, NOT:
 		if f.Value == NULL {
-			exp = fmt.Sprintf("%s %s NULL", f.Name, translateMethods[f.Method])
+			exp = fmt.Sprintf("%s %s NULL", f.ParameterizedName, translateMethods[f.Method])
 			return exp, nil
 		}
 		return exp, ErrUnknownMethod
 	case IN, NIN:
-		exp = fmt.Sprintf("%s %s (?)", f.Name, translateMethods[f.Method])
+		exp = fmt.Sprintf("%s %s (?)", f.ParameterizedName, translateMethods[f.Method])
 		exp, _, _ = in(exp, f.Value)
 		return exp, nil
 	case raw:
-		return f.Name, nil
+		return f.ParameterizedName, nil
 	default:
 		return exp, ErrUnknownMethod
 	}
