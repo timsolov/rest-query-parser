@@ -273,13 +273,13 @@ func (q *Query) HaveFiltersOnTable(table string) bool {
 }
 
 // HaveFilter returns true if request contains some filter
-func (q *Query) HaveFilter(table string, name string) bool {
+func (q *Query) HaveFilter(table string, name string) (bool, *Filter) {
 	for _, v := range q.Filters {
 		if v.RawName == name && v.Table == table {
-			return true
+			return true, v
 		}
 	}
-	return false
+	return false, nil
 }
 
 // AddFilter adds a filter to Query
@@ -326,11 +326,11 @@ func (q *Query) AddORFilters(fn func(query *Query)) *Query {
 // AddFilterRaw adds a filter to Query as SQL condition.
 // This function supports only single condition per one call.
 // If you'd like add more then one conditions you should call this func several times.
-func (q *Query) AddFilterRaw(condition string) *Query {
+func (q *Query) AddFilterRaw(table, condition string) *Query {
 	q.Filters = append(q.Filters, &Filter{
-		RawName:           condition,
 		ParameterizedName: condition,
 		Method:            raw,
+		Table:             table,
 	})
 	return q
 }
@@ -417,14 +417,12 @@ func (q *Query) RemoveValidation(NameAndOrTags string) error {
 }
 
 // GetFilter returns filter by name
-func (q *Query) GetFilter(name string) (*Filter, error) {
-
+func (q *Query) GetFilter(table, name string) (*Filter, error) {
 	for _, v := range q.Filters {
-		if v.RawName == name {
+		if v.RawName == name && v.Table == table {
 			return v, nil
 		}
 	}
-
 	return nil, ErrFilterNotFound
 }
 
