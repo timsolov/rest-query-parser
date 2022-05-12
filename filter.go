@@ -312,6 +312,13 @@ func (f *Filter) setInt(list []string) error {
 				return ErrBadFormat
 			}
 			f.Value = i
+		case IS, NOT:
+			if strings.Compare(strings.ToUpper(list[0]), NULL) == 0 {
+				f.Value = NULL
+				return nil
+			} else {
+				return ErrBadFormat
+			}
 		default:
 			return ErrMethodNotAllowed
 		}
@@ -341,6 +348,13 @@ func (f *Filter) setFloat(list []string) error {
 				return ErrBadFormat
 			}
 			f.Value = i
+		case IS, NOT:
+			if strings.Compare(strings.ToUpper(list[0]), NULL) == 0 {
+				f.Value = NULL
+				return nil
+			} else {
+				return ErrBadFormat
+			}
 		default:
 			return ErrMethodNotAllowed
 		}
@@ -363,15 +377,23 @@ func (f *Filter) setFloat(list []string) error {
 
 func (f *Filter) setBool(list []string) error {
 	if len(list) == 1 {
-		if f.Method != EQ {
+		switch f.Method {
+		case EQ, NE:
+			i, err := strconv.ParseBool(list[0])
+			if err != nil {
+				return ErrBadFormat
+			}
+			f.Value = i
+		case IS, NOT:
+			if strings.Compare(strings.ToUpper(list[0]), NULL) == 0 {
+				f.Value = NULL
+				return nil
+			} else {
+				return ErrBadFormat
+			}
+		default:
 			return ErrMethodNotAllowed
 		}
-
-		i, err := strconv.ParseBool(list[0])
-		if err != nil {
-			return ErrBadFormat
-		}
-		f.Value = i
 	} else {
 		return ErrMethodNotAllowed
 	}
@@ -388,6 +410,8 @@ func (f *Filter) setString(list []string) error {
 			if strings.Compare(strings.ToUpper(list[0]), NULL) == 0 {
 				f.Value = NULL
 				return nil
+			} else {
+				return ErrBadFormat
 			}
 		default:
 			return ErrMethodNotAllowed
@@ -409,6 +433,8 @@ func (f *Filter) setCustom(list []string) error {
 			if strings.Compare(strings.ToUpper(list[0]), NULL) == 0 {
 				f.Value = NULL
 				return nil
+			} else {
+				return ErrBadFormat
 			}
 		}
 	}
@@ -429,6 +455,8 @@ func (f *Filter) setTime(list []string) error {
 			if strings.Compare(strings.ToUpper(list[0]), NULL) == 0 {
 				f.Value = NULL
 				return nil
+			} else {
+				return ErrBadFormat
 			}
 		default:
 			return ErrMethodNotAllowed
