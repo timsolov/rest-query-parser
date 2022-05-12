@@ -273,13 +273,13 @@ func (q *Query) HaveFiltersOnTable(table string) bool {
 }
 
 // HaveFilter returns true if request contains some filter
-func (q *Query) HaveFilter(table string, name string) (bool, *Filter) {
+func (q *Query) HaveFilter(table string, name string) bool {
 	for _, v := range q.Filters {
 		if v.RawName == name && v.Table == table {
-			return true, v
+			return true
 		}
 	}
-	return false, nil
+	return false
 }
 
 // AddFilter adds a filter to Query
