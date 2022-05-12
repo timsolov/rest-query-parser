@@ -50,33 +50,35 @@ func detectValidation(name string, validations Validations) (ValidationFunc, boo
 }
 
 // detectType
-func detectType(name string, validations Validations) (string, error) {
+func detectType(name string, validations Validations) string {
 
 	for k := range validations {
 		if strings.Contains(k, ":") {
 			split := strings.Split(k, ":")
 			if split[1] == name {
-				switch split[2] {
-				case "int", "i":
-					return "int", nil
-				case "float", "f":
-					return "float", nil
-				case "bool", "b":
-					return "bool", nil
-				case "time", "t":
-					return "time", nil
-				case "custom", "c":
-					return "custom", nil
-				case "json", "j":
-					return "json", nil
-				default:
-					return "string", nil
+				if len(split) > 2 {
+					switch split[2] {
+					case "int", "i":
+						return "int"
+					case "float", "f":
+						return "float"
+					case "bool", "b":
+						return "bool"
+					case "time", "t":
+						return "time"
+					case "custom", "c":
+						return "custom"
+					case "json", "j":
+						return "json"
+					default:
+						return "string"
+					}
 				}
 			}
 		}
 	}
 
-	return "", errors.New("could not find type")
+	return "string" //, errors.New("could not find type")
 }
 
 // detectTable
@@ -121,10 +123,7 @@ func newFilter(rawKey string, value string, delimiter string, validations Valida
 	}
 
 	// detect type by key names in validations
-	valueType, err := detectType(f.RawName, validations)
-	if err != nil {
-		return nil, err
-	}
+	valueType := detectType(f.RawName, validations)
 
 	if err := f.parseValue(valueType, value, delimiter); err != nil {
 		return nil, err

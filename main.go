@@ -284,13 +284,9 @@ func (q *Query) HaveFilter(table string, name string) bool {
 
 // AddFilter adds a filter to Query
 func (q *Query) AddFilter(name string, table string, m Method, value interface{}) *Query {
-	pName, err := getFilterName(name, q.validations)
-	if err != nil {
-		panic(err)
-	}
 	q.Filters = append(q.Filters, &Filter{
 		RawName:           name,
-		ParameterizedName: pName,
+		ParameterizedName: getFilterName(name, q.validations),
 		Method:            m,
 		Value:             value,
 		Table:             table,
@@ -450,11 +446,7 @@ func (q *Query) ReplaceNames(r Replacer) {
 		for i, v := range q.Filters {
 			if v.RawName == name {
 				q.Filters[i].RawName = newname
-				pName, err := getFilterName(newname, q.validations)
-				if err != nil {
-					panic(err)
-				}
-				q.Filters[i].ParameterizedName = pName
+				q.Filters[i].ParameterizedName = getFilterName(newname, q.validations)
 			}
 		}
 		for i, v := range q.Fields {
@@ -782,15 +774,11 @@ func (q *Query) parseFilter(key, value string) error {
 		f = filter
 	}
 
-	newName, err := getFilterName(f.RawName, q.validations)
-	if err != nil {
-		return err
-	}
 	table, err := detectTable(f.RawName, q.validations)
 	if err != nil {
 		return err
 	}
-	f.ParameterizedName = newName
+	f.ParameterizedName = getFilterName(f.RawName, q.validations)
 	f.Table = table
 	q.Filters = append(q.Filters, f)
 
@@ -799,13 +787,13 @@ func (q *Query) parseFilter(key, value string) error {
 
 // allow support for filters on nested custom/json properties,
 // e.g. pace.pacing_strategy
-func getFilterName(name string, v Validations) (string, error) {
+func getFilterName(name string, v Validations) string {
 	elems := strings.Split(name, ".")
 	cur := elems[0]
 	var jsonElems []string
 	if len(elems) > 1 {
 		for _, el := range elems[1:] {
-			t, _ := detectType(cur, v)
+			t := detectType(cur, v)
 			if t == "json" {
 				jsonElems = append(jsonElems, cur)
 				cur = el
@@ -815,11 +803,11 @@ func getFilterName(name string, v Validations) (string, error) {
 		}
 		jsonElems = append(jsonElems, cur)
 		if len(jsonElems) > 1 {
-			t, _ := detectType(name, v)
-			return getFilterNameJsonHelper(t, jsonElems...), nil
+			t := detectType(name, v)
+			return getFilterNameJsonHelper(t, jsonElems...)
 		}
 	}
-	return cur, nil
+	return cur
 }
 
 // recursive helper for extracting json
@@ -935,10 +923,7 @@ func (q *Query) parseFields(value []string) error {
 				return err
 			}
 		}
-		table, err := detectTable(v, q.validations)
-		if err != nil {
-			return err
-		}
+		table, _ := detectTable(v, q.validations)
 		q.Fields = append(q.Fields, Field{Name: v, Table: table})
 	}
 
