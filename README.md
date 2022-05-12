@@ -32,8 +32,8 @@ See cmd/main.go and tests for more examples.
         url, _ := url.Parse("http://localhost/?sort=+name,-id&limit=10&id=1&i[eq]=5&s[eq]=one&email[like]=*tim*|name[like]=*tim*")
         q, _ := rqp.NewParse(url.Query(), rqp.Validations{
             "limit:required": rqp.MinMax(10, 100),  // limit must present in the Query part and must be between 10 and 100 (default: Min(1))
-            "sort":           rqp.InString("id", "name"), // sort could be or not in the query but if it is present it must be equal to "in" or "name"
-            "s":      rqp.InString("one", "two"), // filter: s - string and equal
+            "sort":           rqp.In("id", "name"), // sort could be or not in the query but if it is present it must be equal to "in" or "name"
+            "s":      rqp.In("one", "two"), // filter: s - string and equal
             "id:int": nil,                  // filter: id is integer without additional validation
             "i:int": func(value interface{}) error { // filter: custom func for validating
                 if value.(int) > 1 && value.(int) < 10 {
@@ -49,7 +49,7 @@ See cmd/main.go and tests for more examples.
         fmt.Println(q.Where())      // id = ? AND i = ? AND s = ? AND (email LIKE ? OR name LIKE ?)
         fmt.Println(q.Args())       // [1 5 one %tim% %tim%]
 
-        q.AddValidation("fields", rqp.InString("id", "name"))
+        q.AddValidation("fields", rqp.In("id", "name"))
         q.SetUrlString("http://localhost/?fields=id,name&limit=10")
         q.Parse()
 
@@ -60,8 +60,8 @@ See cmd/main.go and tests for more examples.
 ```
 
 ## Top level fields:
-* `fields` - fields for SELECT clause separated by comma (",") Eg. `&fields=id,name`. If nothing provided will use "\*" by default. Attention! If you want to use this filter you have to define validation func for it. Use `rqp.InString("id", "name")` func for limit fields for your query.
-* `sort` - sorting fields list separated by comma (","). Must be validated too. Could include prefix +/- which means ASC/DESC sorting. Eg. `&sort=+id,-name` will print `ORDER BY id, name  DESC`. You have to filter fields in this parameter by adding `rqp.InString("id", "name")`.
+* `fields` - fields for SELECT clause separated by comma (",") Eg. `&fields=id,name`. If nothing provided will use "\*" by default. Attention! If you want to use this filter you have to define validation func for it. Use `rqp.In("id", "name")` func for limit fields for your query.
+* `sort` - sorting fields list separated by comma (","). Must be validated too. Could include prefix +/- which means ASC/DESC sorting. Eg. `&sort=+id,-name` will print `ORDER BY id, name  DESC`. You have to filter fields in this parameter by adding `rqp.In("id", "name")`.
 * `limit` - is limit for LIMIT clause. Should be greater then 0 by default. Definition of the validation for `limit` is not required. But you may use `rqp.Max(100)` to limit top threshold.
 * `offset` - is offset for OFFSET clause. Should be greater then or equal to 0 by default. Definition of the validation for `offset` is not required.
 

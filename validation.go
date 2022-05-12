@@ -24,62 +24,16 @@ func Multi(values ...ValidationFunc) ValidationFunc {
 	}
 }
 
-func InString(values ...string) ValidationFunc {
+func In(values ...any) ValidationFunc {
 	return func(value interface{}) error {
 
 		var (
-			v  string
+			v  any
 			in bool = false
 		)
 
 		for _, v = range values {
-			if v == value.(string) {
-				in = true
-				break
-			}
-		}
-
-		if !in {
-			return errors.Wrapf(ErrNotInScope, "%v", value)
-		}
-
-		return nil
-	}
-}
-
-func InBool(values ...bool) ValidationFunc {
-	return func(value interface{}) error {
-
-		var (
-			v  bool
-			in bool = false
-		)
-
-		for _, v = range values {
-			if v == value.(bool) {
-				in = true
-				break
-			}
-		}
-
-		if !in {
-			return errors.Wrapf(ErrNotInScope, "%v", value)
-		}
-
-		return nil
-	}
-}
-
-func InInt(values ...int) ValidationFunc {
-	return func(value interface{}) error {
-
-		var (
-			v  int
-			in bool = false
-		)
-
-		for _, v = range values {
-			if v == value.(int) {
+			if v == value {
 				in = true
 				break
 			}
