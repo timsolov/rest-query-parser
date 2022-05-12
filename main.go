@@ -129,13 +129,16 @@ func (q *Query) FieldsNames() []string {
 // When "fields=id,email": `id, email`
 //
 func (q *Query) Select(tables ...string) string {
-	if len(q.Fields) == 0 {
-		return "*"
-	}
 	fieldNames := []string{}
-	for _, f := range q.Fields {
-		if stringInSlice(f.Table, tables) {
-			fieldNames = append(fieldNames, fmt.Sprintf("%s.%s", f.Table, f.Name))
+	if len(q.Fields) == 0 {
+		for _, table := range tables {
+			fieldNames = append(fieldNames, fmt.Sprintf("%s.*", table))
+		}
+	} else {
+		for _, f := range q.Fields {
+			if stringInSlice(f.Table, tables) {
+				fieldNames = append(fieldNames, fmt.Sprintf("%s.%s", f.Table, f.Name))
+			}
 		}
 	}
 	return strings.Join(fieldNames, ", ")
