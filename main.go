@@ -788,24 +788,33 @@ func (q *Query) parseFilter(key, value string) error {
 func getFilterName(name string, v Validations) string {
 	elems := strings.Split(name, ".")
 	cur := elems[0]
+	curFormatted := elems[0]
 	var jsonElems []string
 	if len(elems) > 1 {
-		for _, el := range elems[1:] {
+		for i, el := range elems[1:] {
 			t := detectType(cur, v)
 			if t == "json" {
-				jsonElems = append(jsonElems, cur)
+				jsonElems = append(jsonElems, curFormatted)
 				cur = el
-			} else {
+				curFormatted = el
+			} else if t == "custom" {
+				if i == 0 {
+					curFormatted = fmt.Sprintf("(%s).%s", cur, el)
+				} else {
+					curFormatted = fmt.Sprintf("%s.%s", curFormatted, el)
+				}
 				cur = fmt.Sprintf("%s.%s", cur, el)
+			} else {
+				return name
 			}
 		}
-		jsonElems = append(jsonElems, cur)
+		jsonElems = append(jsonElems, curFormatted)
 		if len(jsonElems) > 1 {
 			t := detectType(name, v)
 			return getFilterNameJsonHelper(t, jsonElems...)
 		}
 	}
-	return cur
+	return curFormatted
 }
 
 // recursive helper for extracting json
