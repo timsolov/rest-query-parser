@@ -161,9 +161,19 @@ func (q *Query) SELECT(tables ...string) string {
 }
 
 // HaveField returns true if request asks for specified field
-func (q *Query) HaveField(field Field) bool {
+func (q *Query) HaveField(table string, name string) bool {
 	for _, b := range q.Fields {
-		if b == field {
+		if b.Name == name && b.Table == table {
+			return true
+		}
+	}
+	return false
+}
+
+// HaveFieldsOnTable returns true if request asks for specified table
+func (q *Query) HaveFieldsOnTable(table string) bool {
+	for _, b := range q.Fields {
+		if b.Table == table {
 			return true
 		}
 	}
@@ -171,8 +181,8 @@ func (q *Query) HaveField(field Field) bool {
 }
 
 // AddField adds field to SELECT statement
-func (q *Query) AddField(field Field) *Query {
-	q.Fields = append(q.Fields, field)
+func (q *Query) AddField(table string, name string) *Query {
+	q.Fields = append(q.Fields, Field{Name: name, Table: table})
 	return q
 }
 
