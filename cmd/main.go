@@ -32,11 +32,11 @@ func main() {
 		// special system fields: fields, limit, offset, sort
 		// filters "fields" and "sort" must be always validated
 		// If you won't define ValidationFunc but include "fields" or "sort" parameter to the URL the Parser raises an Error
-		"limit:required": rqp.MinMax(10, 100),        // limit must present in the Query part and must be between 10 and 100 (default: Min(1))
-		"sort":           rqp.InString("id", "name"), // sort could be or not in the query but if it is present it must be equal to "in" or "name"
+		"limit:required": rqp.MinMax(10, 100),  // limit must present in the Query part and must be between 10 and 100 (default: Min(1))
+		"sort":           rqp.In("id", "name"), // sort could be or not in the query but if it is present it must be equal to "in" or "name"
 
-		"s":      rqp.InString("one", "two"), // filter: s - string and equal
-		"id:int": nil,                        // filter: id is integer without additional validation
+		"s":      rqp.In("one", "two"), // filter: s - string and equal
+		"id:int": nil,                  // filter: id is integer without additional validation
 		"i:int": func(value interface{}) error { // filter: custom func for validating
 			if value.(int) > 1 && value.(int) < 10 {
 				return nil
@@ -55,7 +55,7 @@ func main() {
 	fmt.Println(q.Where())      // id = ? AND i = ? AND s = ? AND (email LIKE ? OR name LIKE ?)
 	fmt.Println(q.Args())       // [1 5 one %tim% %tim%]
 
-	q.AddValidation("fields", rqp.InString("id", "name"))
+	q.AddValidation("fields", rqp.In("id", "name"))
 	q.SetUrlString("http://localhost/?fields=id,name&limit=10")
 	q.Parse()
 

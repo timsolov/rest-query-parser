@@ -8,25 +8,25 @@ import (
 )
 
 func TestIn(t *testing.T) {
-	err := InString("one", "two")("three")
+	err := In("one", "two")("three")
 	assert.Equal(t, errors.Cause(err), ErrNotInScope)
 	assert.EqualError(t, err, "three: not in scope")
 
-	err = InInt(1, 2)(3)
+	err = In(1, 2)(3)
 	assert.Equal(t, errors.Cause(err), ErrNotInScope)
 	assert.EqualError(t, err, "3: not in scope")
 
-	err = InBool(true)(false)
+	err = In(true)(false)
 	assert.Equal(t, errors.Cause(err), ErrNotInScope)
 	assert.EqualError(t, err, "false: not in scope")
 
-	err = InString("one", "two")("one")
+	err = In("one", "two")("one")
 	assert.NoError(t, err)
 
-	err = InInt(1, 2)(1)
+	err = In(1, 2)(1)
 	assert.NoError(t, err)
 
-	err = InBool(true)(true)
+	err = In(true)(true)
 	assert.NoError(t, err)
 }
 

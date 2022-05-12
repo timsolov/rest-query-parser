@@ -505,7 +505,7 @@ func (q *Query) WHERE(tables ...string) string {
 }
 
 // Args returns slice of arguments for WHERE statement
-func (q *Query) Args() []interface{} {
+func (q *Query) Args(tables ...string) []interface{} {
 
 	args := make([]interface{}, 0)
 
@@ -515,6 +515,11 @@ func (q *Query) Args() []interface{} {
 
 	for i := 0; i < len(q.Filters); i++ {
 		filter := q.Filters[i]
+
+		if !stringInSlice(filter.Table, tables) {
+			continue
+		}
+
 		if (filter.Method == IS || filter.Method == NOT) && filter.Value == NULL {
 			continue
 		}
