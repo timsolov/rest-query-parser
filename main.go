@@ -100,7 +100,7 @@ func (q *Query) SetDelimiterOR(d string) *Query {
 	return q
 }
 
-// FieldsString returns elements list separated by comma (",") for querying in SELECT statement
+// FieldsString returns elements list separated by comma (",") for querying in SELECT statement or a star ("*") if nothing provided
 //
 // Return example:
 //
@@ -120,47 +120,41 @@ func (q *Query) FieldsNames() []string {
 	return fieldNames
 }
 
-// Select returns elements list separated by comma (",") for querying in SELECT statement
+// Select returns elements list separated by comma (",") for querying in SELECT statement or a star ("*") if nothing provided
 //
 // Return examples:
 //
-// When "fields" empty or not provided: fall back on provided validations
+// When "fields" empty or not provided: `*`
 //
 // When "fields=id,email": `id, email`
 //
 func (q *Query) Select(tables ...string) string {
-	fieldNames := []string{}
 	if len(q.Fields) == 0 {
-		for k := range q.validations {
-			if strings.Contains(k, ":") {
-				split := strings.Split(k, ":")
-				table := split[0]
-				name := split[1]
-				if stringInSlice(table, tables) {
-					fieldNames = append(fieldNames, fmt.Sprintf("%s.%s", table, name))
-				}
-			}
-		}
-	} else {
-		for _, f := range q.Fields {
-			if stringInSlice(f.Table, tables) {
-				fieldNames = append(fieldNames, fmt.Sprintf("%s.%s", f.Table, f.Name))
-			}
+		return "*"
+	}
+	fieldNames := []string{}
+	for _, f := range q.Fields {
+		if stringInSlice(f.Table, tables) {
+			fieldNames = append(fieldNames, fmt.Sprintf("%s.%s", f.Table, f.Name))
 		}
 	}
 	return strings.Join(fieldNames, ", ")
 }
 
 // SELECT returns word SELECT with fields from Filter "fields" separated by comma (",") from URL-Query
+// or word SELECT with star ("*") if nothing provided
 //
 // Return examples:
 //
-// When "fields" empty or not provided: fall back on validations
+// When "fields" empty or not provided: `SELECT *`.
 //
 // When "fields=id,email": `SELECT id, email`.
 //
 func (q *Query) SELECT(tables ...string) string {
-	return fmt.Sprintf("SELECT %s", q.Select(tables...))
+	if len(q.Fields) == 0 {
+		return "SELECT *"
+	}
+	return fmt.Sprintf("SELECT %s", q.FieldsString())
 }
 
 // HaveField returns true if request asks for specified field
