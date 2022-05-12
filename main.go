@@ -112,6 +112,14 @@ func (q *Query) FieldsString(tables ...string) string {
 	return q.Select(tables...)
 }
 
+func (q *Query) FieldsNames() []string {
+	fieldNames := []string{}
+	for _, f := range q.Fields {
+		fieldNames = append(fieldNames, f.Name)
+	}
+	return fieldNames
+}
+
 // Select returns elements list separated by comma (",") for querying in SELECT statement or a star ("*") if nothing provided
 //
 // Return examples:
