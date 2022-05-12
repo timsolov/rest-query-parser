@@ -154,7 +154,7 @@ func (q *Query) SELECT(tables ...string) string {
 	if len(q.Fields) == 0 {
 		return "SELECT *"
 	}
-	return fmt.Sprintf("SELECT %s", q.FieldsString())
+	return fmt.Sprintf("SELECT %s", q.Select(tables...))
 }
 
 // HaveField returns true if request asks for specified field
