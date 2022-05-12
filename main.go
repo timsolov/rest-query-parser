@@ -245,13 +245,11 @@ func (q *Query) ORDER() string {
 
 // HaveSortBy returns true if request contains sorting by specified in by field name
 func (q *Query) HaveSortBy(by string) bool {
-
 	for _, v := range q.Sorts {
 		if v.By == by {
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -265,14 +263,22 @@ func (q *Query) AddSortBy(by string, desc bool) *Query {
 }
 
 // HaveFilter returns true if request contains some filter
-func (q *Query) HaveFilter(name string) bool {
-
+func (q *Query) HaveFiltersOnTable(table string) bool {
 	for _, v := range q.Filters {
-		if v.RawName == name {
+		if v.Table == table {
 			return true
 		}
 	}
+	return false
+}
 
+// HaveFilter returns true if request contains some filter
+func (q *Query) HaveFilter(table string, name string) bool {
+	for _, v := range q.Filters {
+		if v.RawName == name && v.Table == table {
+			return true
+		}
+	}
 	return false
 }
 
@@ -621,7 +627,7 @@ func (q *Query) Parse() (err error) {
 	q.cleanFilters()
 
 	// construct a slice with required names of filters
-	requiredNames := q.requiredNames()
+	// requiredNames := q.requiredNames()
 
 	for key, values := range q.query {
 
@@ -631,19 +637,19 @@ func (q *Query) Parse() (err error) {
 		case "fields", "fields[in]":
 			low = strings.ReplaceAll(low, "[in]", "")
 			err = q.parseFields(values)
-			delete(requiredNames, low)
+			//delete(requiredNames, low)
 		case "offset", "offset[in]":
 			low = strings.ReplaceAll(low, "[in]", "")
 			err = q.parseOffset(values, q.validations[low])
-			delete(requiredNames, low)
+			//delete(requiredNames, low)
 		case "limit", "limit[in]":
 			low = strings.ReplaceAll(low, "[in]", "")
 			err = q.parseLimit(values, q.validations[low])
-			delete(requiredNames, low)
+			//delete(requiredNames, low)
 		case "sort", "sort[in]":
 			low = strings.ReplaceAll(low, "[in]", "")
 			err = q.parseSort(values, q.validations[low])
-			delete(requiredNames, low)
+			//delete(requiredNames, low)
 		default:
 			if len(values) == 0 {
 				return errors.Wrap(ErrBadFormat, key)
@@ -663,55 +669,55 @@ func (q *Query) Parse() (err error) {
 
 	// check required filters
 
-	for requiredName := range requiredNames {
-		if !q.HaveFilter(requiredName) {
-			return errors.Wrap(ErrRequired, requiredName)
-		}
-	}
+	// for requiredName := range requiredNames {
+	// 	if !q.HaveFilter(requiredName) {
+	// 		return errors.Wrap(ErrRequired, requiredName)
+	// 	}
+	// }
 
 	return nil
 }
 
-// requiredNames returns list of required filters
-func (q *Query) requiredNames() map[string]bool {
-	required := make(map[string]bool)
+// // requiredNames returns list of required filters
+// func (q *Query) requiredNames() map[string]bool {
+// 	required := make(map[string]bool)
 
-	for name, f := range q.validations {
-		if strings.Contains(name, ":required") {
-			oldname := name
-			// oldname = arg1:required
-			// oldname = arg2:int:required
-			newname := strings.Replace(name, ":required", "", 1)
-			// newname = arg1
-			// newname = arg2:int
+// 	for name, f := range q.validations {
+// 		if strings.Contains(name, ":required") {
+// 			oldname := name
+// 			// oldname = arg1:required
+// 			// oldname = arg2:int:required
+// 			newname := strings.Replace(name, ":required", "", 1)
+// 			// newname = arg1
+// 			// newname = arg2:int
 
-			if strings.Contains(newname, ":") {
-				parts := strings.Split(newname, ":")
-				name = parts[0]
-			} else {
-				name = newname
-			}
-			// name = arg1
-			// name = arg2
+// 			if strings.Contains(newname, ":") {
+// 				parts := strings.Split(newname, ":")
+// 				name = parts[0]
+// 			} else {
+// 				name = newname
+// 			}
+// 			// name = arg1
+// 			// name = arg2
 
-			low := strings.ToLower(name)
-			switch low {
-			case "fields", "fields[in]",
-				"offset", "offset[in]",
-				"limit", "limit[in]",
-				"sort", "sort[in]":
-				low = strings.ReplaceAll(low, "[in]", "")
-				required[low] = true
-			default:
-				required[name] = true
-			}
+// 			low := strings.ToLower(name)
+// 			switch low {
+// 			case "fields", "fields[in]",
+// 				"offset", "offset[in]",
+// 				"limit", "limit[in]",
+// 				"sort", "sort[in]":
+// 				low = strings.ReplaceAll(low, "[in]", "")
+// 				required[low] = true
+// 			default:
+// 				required[name] = true
+// 			}
 
-			q.validations[newname] = f
-			delete(q.validations, oldname)
-		}
-	}
-	return required
-}
+// 			q.validations[newname] = f
+// 			delete(q.validations, oldname)
+// 		}
+// 	}
+// 	return required
+// }
 
 // parseFilter parses one filter
 func (q *Query) parseFilter(key, value string) error {
