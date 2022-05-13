@@ -1,12 +1,6 @@
-module github.com/nfidel/rest-query-parser
+module github.com/nfidel/rest-query-parser/v2
 
 go 1.18
-
-retract (
-	v1.9.9
-	v1.9.8
-	v1.9.7-fork
-)
 
 require (
 	github.com/go-ozzo/ozzo-validation/v4 v4.3.0
