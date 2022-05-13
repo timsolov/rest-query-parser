@@ -283,7 +283,7 @@ func (q *Query) HaveFilter(table string, name string) bool {
 }
 
 // AddFilter adds a filter to Query
-func (q *Query) AddFilter(name string, table string, m Method, value interface{}) *Query {
+func (q *Query) AddFilter(table, name string, m Method, value interface{}) *Query {
 	q.Filters = append(q.Filters, &Filter{
 		RawName:           name,
 		ParameterizedName: getFilterName(name, q.validations),
