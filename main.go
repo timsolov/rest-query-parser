@@ -198,6 +198,11 @@ func (q *Query) OFFSET() string {
 	return ""
 }
 
+func (q *Query) SetOffset(offset int) *Query {
+	q.Offset = offset
+	return q
+}
+
 // LIMIT returns word LIMIT with number
 //
 // Return example: ` LIMIT 100`
@@ -207,6 +212,11 @@ func (q *Query) LIMIT() string {
 		return fmt.Sprintf(" LIMIT %d", q.Limit)
 	}
 	return ""
+}
+
+func (q *Query) SetLimit(limit int) *Query {
+	q.Limit = limit
+	return q
 }
 
 // Order returns list of elements for ORDER BY statement
