@@ -78,8 +78,9 @@ var (
 
 // Sort is ordering struct
 type Sort struct {
-	By   string
-	Desc bool
+	ByRaw           string
+	ByParameterized string
+	Desc            bool
 }
 
 // IgnoreUnknownFilters set behavior for Parser to raise ErrFilterNotAllowed to undefined filters or not
@@ -223,9 +224,9 @@ func (q *Query) Order() string {
 			s += ", "
 		}
 		if q.Sorts[i].Desc {
-			s += fmt.Sprintf("%s DESC", q.Sorts[i].By)
+			s += fmt.Sprintf("%s DESC", q.Sorts[i].ByParameterized)
 		} else {
-			s += q.Sorts[i].By
+			s += q.Sorts[i].ByParameterized
 		}
 	}
 
@@ -246,7 +247,7 @@ func (q *Query) ORDER() string {
 // HaveSortBy returns true if request contains sorting by specified in by field name
 func (q *Query) HaveSortBy(by string) bool {
 	for _, v := range q.Sorts {
-		if v.By == by {
+		if v.ByRaw == by {
 			return true
 		}
 	}
@@ -256,8 +257,9 @@ func (q *Query) HaveSortBy(by string) bool {
 // AddSortBy adds an ordering rule to Query
 func (q *Query) AddSortBy(by string, desc bool) *Query {
 	q.Sorts = append(q.Sorts, Sort{
-		By:   by,
-		Desc: desc,
+		ByRaw:           by,
+		ByParameterized: getParameterizedName(by, q.validations),
+		Desc:            desc,
 	})
 	return q
 }
@@ -286,7 +288,7 @@ func (q *Query) HaveFilter(table string, name string) bool {
 func (q *Query) AddFilter(table, name string, m Method, value interface{}) *Query {
 	q.Filters = append(q.Filters, &Filter{
 		RawName:           name,
-		ParameterizedName: getFilterName(name, q.validations),
+		ParameterizedName: getParameterizedName(name, q.validations),
 		Method:            m,
 		Value:             value,
 		Table:             table,
@@ -441,10 +443,11 @@ type Replacer map[string]string
 func (q *Query) ReplaceNames(r Replacer) {
 
 	for name, newname := range r {
+		pName := getParameterizedName(newname, q.validations)
 		for i, v := range q.Filters {
 			if v.RawName == name {
 				q.Filters[i].RawName = newname
-				q.Filters[i].ParameterizedName = getFilterName(newname, q.validations)
+				q.Filters[i].ParameterizedName = pName
 			}
 		}
 		for i, v := range q.Fields {
@@ -453,8 +456,9 @@ func (q *Query) ReplaceNames(r Replacer) {
 			}
 		}
 		for i, v := range q.Sorts {
-			if v.By == name {
-				q.Sorts[i].By = newname
+			if v.ByRaw == name {
+				q.Sorts[i].ByRaw = newname
+				q.Sorts[i].ByParameterized = pName
 			}
 		}
 	}
@@ -776,7 +780,7 @@ func (q *Query) parseFilter(key, value string) error {
 	if err != nil {
 		return err
 	}
-	f.ParameterizedName = getFilterName(f.RawName, q.validations)
+	f.ParameterizedName = getParameterizedName(f.RawName, q.validations)
 	f.Table = table
 	q.Filters = append(q.Filters, f)
 
@@ -785,7 +789,7 @@ func (q *Query) parseFilter(key, value string) error {
 
 // allow support for filters on nested custom/json properties,
 // e.g. pace.pacing_strategy
-func getFilterName(name string, v Validations) string {
+func getParameterizedName(name string, v Validations) string {
 	elems := strings.Split(name, ".")
 	cur := elems[0]
 	curFormatted := elems[0]
@@ -811,14 +815,14 @@ func getFilterName(name string, v Validations) string {
 		jsonElems = append(jsonElems, curFormatted)
 		if len(jsonElems) > 1 {
 			t := detectType(name, v)
-			return getFilterNameJsonHelper(t, jsonElems...)
+			return getParameterizedNameJsonHelper(t, jsonElems...)
 		}
 	}
 	return curFormatted
 }
 
 // recursive helper for extracting json
-func getFilterNameJsonHelper(outerType string, elems ...string) string {
+func getParameterizedNameJsonHelper(outerType string, elems ...string) string {
 	if len(elems) == 1 {
 		switch outerType {
 		case "custom", "json":
@@ -840,7 +844,7 @@ func getFilterNameJsonHelper(outerType string, elems ...string) string {
 	if len(elems) > 2 {
 		newElems = append(newElems, elems[2:]...)
 	}
-	return getFilterNameJsonHelper(outerType, newElems...)
+	return getParameterizedNameJsonHelper(outerType, newElems...)
 }
 
 // clean the filters slice
@@ -897,8 +901,9 @@ func (q *Query) parseSort(value []string, validate ValidationFunc) error {
 		}
 
 		sort = append(sort, Sort{
-			By:   by,
-			Desc: desc,
+			ByRaw:           by,
+			ByParameterized: getParameterizedName(by, q.validations),
+			Desc:            desc,
 		})
 	}
 
