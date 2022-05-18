@@ -445,7 +445,7 @@ func TestAddField(t *testing.T) {
 	q := New()
 	q.SetUrlString("?test=ok")
 	q.AddField("test")
-	assert.Len(t, q.Fields, 1)
+	assert.Len(t, q.QueryFields, 1)
 	assert.True(t, q.HaveField("test"))
 	assert.Equal(t, "test", q.FieldsString())
 }

@@ -9,25 +9,31 @@ import (
 	"github.com/pkg/errors"
 )
 
-type Field struct {
+type DatabaseField struct {
 	Name  string
 	Table string
+	Type  string
 }
+
+type QueryDbMap map[string]DatabaseField
 
 // Query the main struct of package
 type Query struct {
 	query       map[string][]string
 	validations Validations
 
-	Fields  []Field
-	Offset  int
-	Limit   int
-	Sorts   []Sort
-	Filters []*Filter
+	queryDbFieldMap QueryDbMap
 
-	delimiterIN   string
-	delimiterOR   string
-	ignoreUnknown bool
+	QueryFields []string
+	Offset      int
+	Limit       int
+	Sorts       []Sort
+	Filters     []*Filter
+
+	delimiterIN           string
+	delimiterOR           string
+	ignoreUnknown         bool
+	allowedSpecialFilters []string
 
 	Error error
 }
@@ -89,6 +95,12 @@ func (q *Query) IgnoreUnknownFilters(i bool) *Query {
 	return q
 }
 
+// set behavior for Parser to not raise ErrFilterNotAllowed for these undefined filters or not
+func (q *Query) AllowSpecialFilters(names ...string) *Query {
+	q.allowedSpecialFilters = names
+	return q
+}
+
 // SetDelimiterIN sets delimiter for values of filters
 func (q *Query) SetDelimiterIN(d string) *Query {
 	q.delimiterIN = d
@@ -115,8 +127,8 @@ func (q *Query) FieldsString(tables ...string) string {
 
 func (q *Query) FieldsNames() []string {
 	fieldNames := []string{}
-	for _, f := range q.Fields {
-		fieldNames = append(fieldNames, f.Name)
+	for _, f := range q.QueryFields {
+		fieldNames = append(fieldNames, f)
 	}
 	return fieldNames
 }
@@ -131,14 +143,26 @@ func (q *Query) FieldsNames() []string {
 //
 func (q *Query) Select(tables ...string) string {
 	fieldNames := []string{}
-	if len(q.Fields) == 0 {
+	if len(q.QueryFields) == 0 {
 		for _, table := range tables {
 			fieldNames = append(fieldNames, fmt.Sprintf("%s.*", table))
 		}
 	} else {
-		for _, f := range q.Fields {
-			if stringInSlice(f.Table, tables) {
-				fieldNames = append(fieldNames, fmt.Sprintf("%s.%s", f.Table, f.Name))
+		for _, qf := range q.QueryFields {
+			for k, v := range q.queryDbFieldMap {
+				newFieldNames := []string{}
+				if stringInSlice(v.Table, tables) {
+					baseQueryField := strings.Split(k, ".")[0]
+					if baseQueryField == qf {
+						if v.Type == "custom" {
+							fieldNames = append(fieldNames, fmt.Sprintf("%s.%s", v.Table, baseQueryField))
+							break
+						} else {
+							newFieldNames = append(newFieldNames, fmt.Sprintf("%s.%s", v.Table, v.Name))
+						}
+					}
+				}
+				fieldNames = append(fieldNames, newFieldNames...)
 			}
 		}
 	}
@@ -155,16 +179,16 @@ func (q *Query) Select(tables ...string) string {
 // When "fields=id,email": `SELECT id, email`.
 //
 func (q *Query) SELECT(tables ...string) string {
-	if len(q.Fields) == 0 {
+	if len(q.QueryFields) == 0 {
 		return "SELECT *"
 	}
 	return fmt.Sprintf("SELECT %s", q.Select(tables...))
 }
 
-// HaveField returns true if request asks for specified field
-func (q *Query) HaveField(table string, name string) bool {
-	for _, b := range q.Fields {
-		if b.Name == name && b.Table == table {
+// HaveQueryField returns true if request asks for specified field
+func (q *Query) HaveQueryField(name string) bool {
+	for _, b := range q.QueryFields {
+		if b == name {
 			return true
 		}
 	}
@@ -173,17 +197,19 @@ func (q *Query) HaveField(table string, name string) bool {
 
 // HaveFieldsOnTable returns true if request asks for specified table
 func (q *Query) HaveFieldsOnTable(table string) bool {
-	for _, b := range q.Fields {
-		if b.Table == table {
-			return true
+	for _, qf := range q.QueryFields {
+		if dbf, ok := q.queryDbFieldMap[qf]; ok {
+			if dbf.Table == table {
+				return true
+			}
 		}
 	}
 	return false
 }
 
 // AddField adds field to SELECT statement
-func (q *Query) AddField(table string, name string) *Query {
-	q.Fields = append(q.Fields, Field{Name: name, Table: table})
+func (q *Query) AddField(name string) *Query {
+	q.QueryFields = append(q.QueryFields, name)
 	return q
 }
 
@@ -268,7 +294,7 @@ func (q *Query) HaveSortBy(by string) bool {
 func (q *Query) AddSortBy(by string, desc bool) *Query {
 	q.Sorts = append(q.Sorts, Sort{
 		ByRaw:           by,
-		ByParameterized: getParameterizedName(by, q.validations),
+		ByParameterized: getParameterizedName(by, q.queryDbFieldMap),
 		Desc:            desc,
 	})
 	return q
@@ -277,7 +303,7 @@ func (q *Query) AddSortBy(by string, desc bool) *Query {
 // HaveFilter returns true if request contains some filter
 func (q *Query) HaveFiltersOnTable(table string) bool {
 	for _, v := range q.Filters {
-		if v.Table == table {
+		if v.DbField.Table == table {
 			return true
 		}
 	}
@@ -285,9 +311,9 @@ func (q *Query) HaveFiltersOnTable(table string) bool {
 }
 
 // HaveFilter returns true if request contains some filter
-func (q *Query) HaveFilter(table string, name string) bool {
+func (q *Query) HaveQueryFilter(queryName string) bool {
 	for _, v := range q.Filters {
-		if v.RawName == name && v.Table == table {
+		if v.QueryName == queryName {
 			return true
 		}
 	}
@@ -295,13 +321,17 @@ func (q *Query) HaveFilter(table string, name string) bool {
 }
 
 // AddFilter adds a filter to Query
-func (q *Query) AddFilter(table, name string, m Method, value interface{}) *Query {
+func (q *Query) AddFilter(name string, m Method, value interface{}) *Query {
+	dbField, err := detectDbField(name, q.queryDbFieldMap)
+	if err != nil {
+		panic("could not find db field for filter")
+	}
 	q.Filters = append(q.Filters, &Filter{
-		RawName:           name,
-		ParameterizedName: getParameterizedName(name, q.validations),
+		QueryName:         name,
+		ParameterizedName: getParameterizedName(dbField.Name, q.queryDbFieldMap),
 		Method:            m,
 		Value:             value,
-		Table:             table,
+		DbField:           dbField,
 	})
 	return q
 }
@@ -335,17 +365,17 @@ func (q *Query) AddORFilters(fn func(query *Query)) *Query {
 	return q
 }
 
-// AddFilterRaw adds a filter to Query as SQL condition.
-// This function supports only single condition per one call.
-// If you'd like add more then one conditions you should call this func several times.
-func (q *Query) AddFilterRaw(table, condition string) *Query {
-	q.Filters = append(q.Filters, &Filter{
-		ParameterizedName: condition,
-		Method:            raw,
-		Table:             table,
-	})
-	return q
-}
+// // AddFilterRaw adds a filter to Query as SQL condition.
+// // This function supports only single condition per one call.
+// // If you'd like add more then one conditions you should call this func several times.
+// func (q *Query) AddFilterRaw(table, name, type, condition string) *Query {
+// 	q.Filters = append(q.Filters, &Filter{
+// 		ParameterizedName: condition,
+// 		Method:            raw,
+// 		DbField: DatabaseField{},
+// 	})
+// 	return q
+// }
 
 // RemoveFilter removes the filter by name
 func (q *Query) RemoveFilter(name string) error {
@@ -366,7 +396,7 @@ func (q *Query) RemoveFilter(name string) error {
 			prev = nil
 		}
 
-		if v.RawName == name {
+		if v.QueryName == name {
 			// special cases for removing filters in OR statement
 			if v.OR == StartOR && next != nil {
 				if next.OR == EndOR {
@@ -429,9 +459,9 @@ func (q *Query) RemoveValidation(NameAndOrTags string) error {
 }
 
 // GetFilter returns filter by name
-func (q *Query) GetFilter(table, name string) (*Filter, error) {
+func (q *Query) GetFilter(queryName string) (*Filter, error) {
 	for _, v := range q.Filters {
-		if v.RawName == name && v.Table == table {
+		if v.QueryName == queryName {
 			return v, nil
 		}
 	}
@@ -453,16 +483,16 @@ type Replacer map[string]string
 func (q *Query) ReplaceNames(r Replacer) {
 
 	for name, newname := range r {
-		pName := getParameterizedName(newname, q.validations)
+		pName := getParameterizedName(newname, q.queryDbFieldMap)
 		for i, v := range q.Filters {
-			if v.RawName == name {
-				q.Filters[i].RawName = newname
+			if v.QueryName == name {
+				q.Filters[i].QueryName = newname
 				q.Filters[i].ParameterizedName = pName
 			}
 		}
-		for i, v := range q.Fields {
-			if v.Name == name {
-				q.Fields[i].Name = newname
+		for i, v := range q.QueryFields {
+			if v == name {
+				q.QueryFields[i] = newname
 			}
 		}
 		for i, v := range q.Sorts {
@@ -479,17 +509,13 @@ func (q *Query) ReplaceNames(r Replacer) {
 // return example: `id > 0 AND email LIKE 'some@email.com'`
 func (q *Query) Where(tables ...string) string {
 
-	if len(q.Filters) == 0 {
-		return ""
-	}
-
 	var where string
 	// var OR bool = false
 
 	for i := 0; i < len(q.Filters); i++ {
 		filter := q.Filters[i]
 
-		if !stringInSlice(filter.Table, tables) {
+		if !stringInSlice(filter.DbField.Table, tables) {
 			continue
 		}
 
@@ -519,7 +545,11 @@ func (q *Query) Where(tables ...string) string {
 
 	}
 
-	return where
+	if where == "" {
+		return where
+	} else {
+		return " WHERE " + where
+	}
 }
 
 // WHERE returns list of filters for WHERE SQL statement with `WHERE` word
@@ -527,12 +557,7 @@ func (q *Query) Where(tables ...string) string {
 // Return example: ` WHERE id > 0 AND email LIKE 'some@email.com'`
 //
 func (q *Query) WHERE(tables ...string) string {
-
-	if len(q.Filters) == 0 {
-		return ""
-	}
-
-	return " WHERE " + q.Where(tables...)
+	return q.Where(tables...)
 }
 
 // Args returns slice of arguments for WHERE statement
@@ -547,7 +572,7 @@ func (q *Query) Args(tables ...string) []interface{} {
 	for i := 0; i < len(q.Filters); i++ {
 		filter := q.Filters[i]
 
-		if !stringInSlice(filter.Table, tables) {
+		if !stringInSlice(filter.DbField.Table, tables) {
 			continue
 		}
 
@@ -612,15 +637,20 @@ func New() *Query {
 }
 
 // NewQV creates new Query instance with parameters
-func NewQV(q url.Values, v Validations) *Query {
-	query := New().SetUrlQuery(q).SetValidations(v)
+func NewQV(q url.Values, v Validations, qdbm QueryDbMap) *Query {
+	query := New().SetUrlQuery(q).SetValidations(v).SetQueryDbFieldsMap(qdbm)
 	return query
 }
 
 // NewParse creates new Query instance and Parse it
-func NewParse(q url.Values, v Validations) (*Query, error) {
-	query := New().SetUrlQuery(q).SetValidations(v)
+func NewParse(q url.Values, v Validations, qdbm QueryDbMap) (*Query, error) {
+	query := New().SetUrlQuery(q).SetValidations(v).SetQueryDbFieldsMap(qdbm)
 	return query, query.Parse()
+}
+
+func (q *Query) SetQueryDbFieldsMap(m QueryDbMap) *Query {
+	q.queryDbFieldMap = m
+	return q
 }
 
 // Parse parses the query of URL
@@ -631,7 +661,7 @@ func (q *Query) Parse() (err error) {
 	q.cleanFilters()
 
 	// construct a slice with required names of filters
-	// requiredNames := q.requiredNames()
+	requiredNames := q.requiredNames()
 
 	for key, values := range q.query {
 
@@ -641,19 +671,19 @@ func (q *Query) Parse() (err error) {
 		case "fields", "fields[in]":
 			low = strings.ReplaceAll(low, "[in]", "")
 			err = q.parseFields(values)
-			//delete(requiredNames, low)
+			delete(requiredNames, low)
 		case "offset", "offset[in]":
 			low = strings.ReplaceAll(low, "[in]", "")
 			err = q.parseOffset(values, q.validations[low])
-			//delete(requiredNames, low)
+			delete(requiredNames, low)
 		case "limit", "limit[in]":
 			low = strings.ReplaceAll(low, "[in]", "")
 			err = q.parseLimit(values, q.validations[low])
-			//delete(requiredNames, low)
+			delete(requiredNames, low)
 		case "sort", "sort[in]":
 			low = strings.ReplaceAll(low, "[in]", "")
 			err = q.parseSort(values, q.validations[low])
-			//delete(requiredNames, low)
+			delete(requiredNames, low)
 		default:
 			if len(values) == 0 {
 				return errors.Wrap(ErrBadFormat, key)
@@ -673,55 +703,55 @@ func (q *Query) Parse() (err error) {
 
 	// check required filters
 
-	// for requiredName := range requiredNames {
-	// 	if !q.HaveFilter(requiredName) {
-	// 		return errors.Wrap(ErrRequired, requiredName)
-	// 	}
-	// }
+	for requiredName := range requiredNames {
+		if !q.HaveQueryFilter(requiredName) {
+			return errors.Wrap(ErrRequired, requiredName)
+		}
+	}
 
 	return nil
 }
 
-// // requiredNames returns list of required filters
-// func (q *Query) requiredNames() map[string]bool {
-// 	required := make(map[string]bool)
+// requiredNames returns list of required filters
+func (q *Query) requiredNames() map[string]bool {
+	required := make(map[string]bool)
 
-// 	for name, f := range q.validations {
-// 		if strings.Contains(name, ":required") {
-// 			oldname := name
-// 			// oldname = arg1:required
-// 			// oldname = arg2:int:required
-// 			newname := strings.Replace(name, ":required", "", 1)
-// 			// newname = arg1
-// 			// newname = arg2:int
+	for name, f := range q.validations {
+		if strings.Contains(name, ":required") {
+			oldname := name
+			// oldname = arg1:required
+			// oldname = arg2:int:required
+			newname := strings.Replace(name, ":required", "", 1)
+			// newname = arg1
+			// newname = arg2:int
 
-// 			if strings.Contains(newname, ":") {
-// 				parts := strings.Split(newname, ":")
-// 				name = parts[0]
-// 			} else {
-// 				name = newname
-// 			}
-// 			// name = arg1
-// 			// name = arg2
+			if strings.Contains(newname, ":") {
+				parts := strings.Split(newname, ":")
+				name = parts[0]
+			} else {
+				name = newname
+			}
+			// name = arg1
+			// name = arg2
 
-// 			low := strings.ToLower(name)
-// 			switch low {
-// 			case "fields", "fields[in]",
-// 				"offset", "offset[in]",
-// 				"limit", "limit[in]",
-// 				"sort", "sort[in]":
-// 				low = strings.ReplaceAll(low, "[in]", "")
-// 				required[low] = true
-// 			default:
-// 				required[name] = true
-// 			}
+			low := strings.ToLower(name)
+			switch low {
+			case "fields", "fields[in]",
+				"offset", "offset[in]",
+				"limit", "limit[in]",
+				"sort", "sort[in]":
+				low = strings.ReplaceAll(low, "[in]", "")
+				required[low] = true
+			default:
+				required[name] = true
+			}
 
-// 			q.validations[newname] = f
-// 			delete(q.validations, oldname)
-// 		}
-// 	}
-// 	return required
-// }
+			q.validations[newname] = f
+			delete(q.validations, oldname)
+		}
+	}
+	return required
+}
 
 // parseFilter parses one filter
 func (q *Query) parseFilter(key, value string) error {
@@ -749,11 +779,11 @@ func (q *Query) parseFilter(key, value string) error {
 				return errors.Wrap(ErrEmptyValue, key)
 			}
 
-			filter, err := newFilter(key, v, q.delimiterIN, q.validations)
+			filter, err := newFilter(key, v, q.delimiterIN, q.validations, q.queryDbFieldMap)
 
 			if err != nil {
 				if err == ErrValidationNotFound {
-					if q.ignoreUnknown {
+					if q.ignoreUnknown || stringInSlice(filter.QueryName, q.allowedSpecialFilters) {
 						continue
 					} else {
 						return errors.Wrap(ErrFilterNotFound, key)
@@ -773,11 +803,11 @@ func (q *Query) parseFilter(key, value string) error {
 			f = filter
 		}
 	} else { // Single filter
-		filter, err := newFilter(key, value, q.delimiterIN, q.validations)
+		filter, err := newFilter(key, value, q.delimiterIN, q.validations, q.queryDbFieldMap)
 		if err != nil {
 			if err == ErrValidationNotFound {
 				err = ErrFilterNotFound
-				if q.ignoreUnknown {
+				if q.ignoreUnknown || stringInSlice(filter.QueryName, q.allowedSpecialFilters) {
 					return nil
 				}
 			}
@@ -786,12 +816,6 @@ func (q *Query) parseFilter(key, value string) error {
 		f = filter
 	}
 
-	table, err := detectTable(f.RawName, q.validations)
-	if err != nil {
-		return err
-	}
-	f.ParameterizedName = getParameterizedName(f.RawName, q.validations)
-	f.Table = table
 	q.Filters = append(q.Filters, f)
 
 	return nil
@@ -799,14 +823,14 @@ func (q *Query) parseFilter(key, value string) error {
 
 // allow support for filters on nested custom/json properties,
 // e.g. pace.pacing_strategy
-func getParameterizedName(name string, v Validations) string {
+func getParameterizedName(name string, qdbm QueryDbMap) string {
 	elems := strings.Split(name, ".")
 	cur := elems[0]
 	curFormatted := elems[0]
 	var jsonElems []string
 	if len(elems) > 1 {
 		for i, el := range elems[1:] {
-			t := detectType(cur, v)
+			t := detectType(cur, qdbm)
 			if t == "json" {
 				jsonElems = append(jsonElems, curFormatted)
 				cur = el
@@ -824,7 +848,7 @@ func getParameterizedName(name string, v Validations) string {
 		}
 		jsonElems = append(jsonElems, curFormatted)
 		if len(jsonElems) > 1 {
-			t := detectType(name, v)
+			t := detectType(name, qdbm)
 			return getParameterizedNameJsonHelper(t, jsonElems...)
 		}
 	}
@@ -912,7 +936,7 @@ func (q *Query) parseSort(value []string, validate ValidationFunc) error {
 
 		sort = append(sort, Sort{
 			ByRaw:           by,
-			ByParameterized: getParameterizedName(by, q.validations),
+			ByParameterized: getParameterizedName(by, q.queryDbFieldMap),
 			Desc:            desc,
 		})
 	}
@@ -945,8 +969,7 @@ func (q *Query) parseFields(value []string) error {
 				return err
 			}
 		}
-		table, _ := detectTable(v, q.validations)
-		q.Fields = append(q.Fields, Field{Name: v, Table: table})
+		q.QueryFields = append(q.QueryFields, v)
 	}
 
 	return nil
