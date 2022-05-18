@@ -149,21 +149,22 @@ func (q *Query) Select(tables ...string) string {
 		}
 	} else {
 		for _, qf := range q.QueryFields {
+			newFieldNames := []string{}
 			for k, v := range q.queryDbFieldMap {
-				newFieldNames := []string{}
 				if stringInSlice(v.Table, tables) {
 					baseQueryField := strings.Split(k, ".")[0]
 					if baseQueryField == qf {
 						if v.Type == "custom" {
 							fieldNames = append(fieldNames, fmt.Sprintf("%s.%s", v.Table, baseQueryField))
+							newFieldNames = []string{}
 							break
 						} else {
 							newFieldNames = append(newFieldNames, fmt.Sprintf("%s.%s", v.Table, v.Name))
 						}
 					}
 				}
-				fieldNames = append(fieldNames, newFieldNames...)
 			}
+			fieldNames = append(fieldNames, newFieldNames...)
 		}
 	}
 	return strings.Join(fieldNames, ", ")
