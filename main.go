@@ -795,13 +795,15 @@ func (q *Query) parseFilter(key, value string) error {
 
 			if err != nil {
 				if err == ErrValidationNotFound {
-					if q.ignoreUnknown || stringInSlice(filter.QueryName, q.allowedSpecialFilters) {
+					isAllowed := stringInSlice(filter.QueryName, q.allowedSpecialFilters)
+					if q.ignoreUnknown && !isAllowed {
 						continue
-					} else {
+					} else if !isAllowed {
 						return errors.Wrap(ErrFilterNotFound, key)
 					}
+				} else {
+					return errors.Wrap(err, key)
 				}
-				return errors.Wrap(err, key)
 			}
 
 			// set OR
@@ -818,12 +820,16 @@ func (q *Query) parseFilter(key, value string) error {
 		filter, err := newFilter(key, value, q.delimiterIN, q.validations, q.queryDbFieldMap)
 		if err != nil {
 			if err == ErrValidationNotFound {
+				isAllowed := stringInSlice(filter.QueryName, q.allowedSpecialFilters)
 				err = ErrFilterNotFound
-				if q.ignoreUnknown || stringInSlice(filter.QueryName, q.allowedSpecialFilters) {
+				if q.ignoreUnknown && !isAllowed {
 					return nil
+				} else if !isAllowed {
+					return errors.Wrap(err, key)
 				}
+			} else {
+				return errors.Wrap(err, key)
 			}
-			return errors.Wrap(err, key)
 		}
 		f = filter
 	}
