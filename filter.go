@@ -23,11 +23,11 @@ const (
 type Filter struct {
 	Key               string // key from URL (eg. "id[eq]")
 	ParameterizedName string // after applying enhancements to allow nesting
-	RawName           string // name of filter, takes from Key (eg. "id")
+	QueryName         string // name of filter, takes from Key (eg. "id")
 	Method            Method // compare method, takes from Key (eg. EQ)
 	Value             interface{}
 	OR                StateOR
-	Table             string
+	DbField           DatabaseField
 }
 
 // detectValidation
@@ -38,7 +38,7 @@ func detectValidation(name string, validations Validations) (ValidationFunc, boo
 	for k, v := range validations {
 		if strings.Contains(k, ":") {
 			split := strings.Split(k, ":")
-			if split[1] == name {
+			if split[0] == name {
 				return v, true
 			}
 		} else if k == name {
@@ -50,50 +50,22 @@ func detectValidation(name string, validations Validations) (ValidationFunc, boo
 }
 
 // detectType
-func detectType(name string, validations Validations) string {
-
-	for k := range validations {
-		if strings.Contains(k, ":") {
-			split := strings.Split(k, ":")
-			if split[1] == name {
-				if len(split) > 2 {
-					switch split[2] {
-					case "int", "i":
-						return "int"
-					case "float", "f":
-						return "float"
-					case "bool", "b":
-						return "bool"
-					case "time", "t":
-						return "time"
-					case "custom", "c":
-						return "custom"
-					case "json", "j":
-						return "json"
-					default:
-						return "string"
-					}
-				}
-			}
-		}
+func detectType(queryName string, qdbm QueryDbMap) string {
+	dbf, err := detectDbField(queryName, qdbm)
+	if err == nil {
+		return dbf.Type
 	}
-
-	return "string" //, errors.New("could not find type")
+	// for special filters, assume json
+	// also safe bc json allowed methods are a subset of other types'
+	return "json" //, errors.New("could not find type")
 }
 
-// detectTable
-func detectTable(name string, validations Validations) (string, error) {
-
-	for k := range validations {
-		if strings.Contains(k, ":") {
-			split := strings.Split(k, ":")
-			if split[1] == name {
-				return split[0], nil
-			}
-		}
+// detectDbField
+func detectDbField(queryName string, qdbm QueryDbMap) (DatabaseField, error) {
+	if dbf, ok := qdbm[queryName]; ok {
+		return dbf, nil
 	}
-
-	return "", errors.New("could not find table")
+	return DatabaseField{}, errors.New("could not find table")
 }
 
 func isNotNull(f *Filter) bool {
@@ -106,7 +78,7 @@ func isNotNull(f *Filter) bool {
 
 // rawKey - url key
 // value - must be one value (if need IN method then values must be separated by comma (,))
-func newFilter(rawKey string, value string, delimiter string, validations Validations) (*Filter, error) {
+func newFilter(rawKey string, value string, delimiter string, validations Validations, qdbm QueryDbMap) (*Filter, error) {
 	f := &Filter{
 		Key: rawKey,
 	}
@@ -117,13 +89,13 @@ func newFilter(rawKey string, value string, delimiter string, validations Valida
 	}
 
 	// detect have we validator func definition on this parameter or not
-	validate, ok := detectValidation(f.RawName, validations)
-	if !ok {
-		return nil, ErrValidationNotFound
-	}
+	validate, _ := detectValidation(f.QueryName, validations)
+	// if !ok {
+	// 	return nil, ErrValidationNotFound
+	// }
 
 	// detect type by key names in validations
-	valueType := detectType(f.RawName, validations)
+	valueType := detectType(f.QueryName, qdbm)
 
 	if err := f.parseValue(valueType, value, delimiter); err != nil {
 		return nil, err
@@ -134,6 +106,13 @@ func newFilter(rawKey string, value string, delimiter string, validations Valida
 			return nil, err
 		}
 	}
+
+	dbField, err := detectDbField(f.QueryName, qdbm)
+	if err != nil {
+		return f, ErrValidationNotFound
+	}
+	f.ParameterizedName = getParameterizedName(dbField.Name, qdbm)
+	f.DbField = dbField
 
 	return f, nil
 }
@@ -174,7 +153,7 @@ func (f *Filter) parseKey(key string) error {
 
 	spos := strings.Index(key, "[")
 	if spos != -1 {
-		f.RawName = key[:spos]
+		f.QueryName = key[:spos]
 		epos := strings.Index(key[spos:], "]")
 		if epos != -1 {
 			// go inside brekets
@@ -189,7 +168,7 @@ func (f *Filter) parseKey(key string) error {
 			}
 		}
 	} else {
-		f.RawName = key
+		f.QueryName = key
 	}
 
 	return nil
