@@ -632,8 +632,9 @@ func (q *Query) SetValidations(v Validations) *Query {
 // New creates new instance of Query
 func New() *Query {
 	return &Query{
-		delimiterIN: ",",
-		delimiterOR: "|",
+		delimiterIN:     ",",
+		delimiterOR:     "|",
+		queryDbFieldMap: QueryDbMap{},
 	}
 }
 
