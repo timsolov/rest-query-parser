@@ -654,6 +654,11 @@ func (q *Query) SetQueryDbFieldsMap(m QueryDbMap) *Query {
 	return q
 }
 
+func (q *Query) AddQueryDbFieldMapping(queryName string, dbField DatabaseField) *Query {
+	q.queryDbFieldMap[queryName] = dbField
+	return q
+}
+
 // Parse parses the query of URL
 // as query you can use standart http.Request query by r.URL.Query()
 func (q *Query) Parse() (err error) {
