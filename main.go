@@ -290,11 +290,15 @@ func (q *Query) HaveQuerySortBy(querySortBy string) bool {
 	return false
 }
 
-// AddSortBy adds an ordering rule to Query
+// AddQuerySortBy adds an ordering rule to Query
 func (q *Query) AddQuerySortBy(querySortBy string, desc bool) *Query {
+	dbField, err := detectDbField(querySortBy, q.queryDbFieldMap)
+	if err != nil {
+		panic("could not find db field for sort")
+	}
 	q.Sorts = append(q.Sorts, Sort{
 		QuerySortBy:     querySortBy,
-		ByParameterized: getParameterizedName(querySortBy, q.queryDbFieldMap),
+		ByParameterized: getParameterizedName(dbField.Name, q.queryDbFieldMap),
 		Desc:            desc,
 	})
 	return q
