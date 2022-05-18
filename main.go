@@ -84,7 +84,7 @@ var (
 
 // Sort is ordering struct
 type Sort struct {
-	ByRaw           string
+	QuerySortBy     string
 	ByParameterized string
 	Desc            bool
 }
@@ -195,8 +195,8 @@ func (q *Query) HaveQueryField(name string) bool {
 	return false
 }
 
-// HaveFieldsOnTable returns true if request asks for specified table
-func (q *Query) HaveFieldsOnTable(table string) bool {
+// HaveQueryFieldsOnTable returns true if request asks for specified table
+func (q *Query) HaveQueryFieldsOnTable(table string) bool {
 	for _, qf := range q.QueryFields {
 		if dbf, ok := q.queryDbFieldMap[qf]; ok {
 			if dbf.Table == table {
@@ -208,8 +208,8 @@ func (q *Query) HaveFieldsOnTable(table string) bool {
 }
 
 // AddField adds field to SELECT statement
-func (q *Query) AddField(name string) *Query {
-	q.QueryFields = append(q.QueryFields, name)
+func (q *Query) AddQueryField(queryName string) *Query {
+	q.QueryFields = append(q.QueryFields, queryName)
 	return q
 }
 
@@ -281,9 +281,9 @@ func (q *Query) ORDER() string {
 }
 
 // HaveSortBy returns true if request contains sorting by specified in by field name
-func (q *Query) HaveSortBy(by string) bool {
+func (q *Query) HaveQuerySortBy(querySortBy string) bool {
 	for _, v := range q.Sorts {
-		if v.ByRaw == by {
+		if v.QuerySortBy == querySortBy {
 			return true
 		}
 	}
@@ -291,17 +291,17 @@ func (q *Query) HaveSortBy(by string) bool {
 }
 
 // AddSortBy adds an ordering rule to Query
-func (q *Query) AddSortBy(by string, desc bool) *Query {
+func (q *Query) AddQuerySortBy(querySortBy string, desc bool) *Query {
 	q.Sorts = append(q.Sorts, Sort{
-		ByRaw:           by,
-		ByParameterized: getParameterizedName(by, q.queryDbFieldMap),
+		QuerySortBy:     querySortBy,
+		ByParameterized: getParameterizedName(querySortBy, q.queryDbFieldMap),
 		Desc:            desc,
 	})
 	return q
 }
 
 // HaveFilter returns true if request contains some filter
-func (q *Query) HaveFiltersOnTable(table string) bool {
+func (q *Query) HaveQueryFiltersOnTable(table string) bool {
 	for _, v := range q.Filters {
 		if v.DbField.Table == table {
 			return true
@@ -321,13 +321,13 @@ func (q *Query) HaveQueryFilter(queryName string) bool {
 }
 
 // AddFilter adds a filter to Query
-func (q *Query) AddFilter(name string, m Method, value interface{}) *Query {
-	dbField, err := detectDbField(name, q.queryDbFieldMap)
+func (q *Query) AddQueryFilter(queryName string, m Method, value interface{}) *Query {
+	dbField, err := detectDbField(queryName, q.queryDbFieldMap)
 	if err != nil {
 		panic("could not find db field for filter")
 	}
 	q.Filters = append(q.Filters, &Filter{
-		QueryName:         name,
+		QueryName:         queryName,
 		ParameterizedName: getParameterizedName(dbField.Name, q.queryDbFieldMap),
 		Method:            m,
 		Value:             value,
@@ -378,7 +378,7 @@ func (q *Query) AddORFilters(fn func(query *Query)) *Query {
 // }
 
 // RemoveFilter removes the filter by name
-func (q *Query) RemoveFilter(name string) error {
+func (q *Query) RemoveQueryFilter(name string) error {
 	var found bool
 	for i := 0; i < len(q.Filters); i++ {
 		v := q.Filters[i]
@@ -430,7 +430,7 @@ func (q *Query) RemoveFilter(name string) error {
 }
 
 // AddValidation adds a validation to Query
-func (q *Query) AddValidation(NameAndTags string, v ValidationFunc) *Query {
+func (q *Query) AddQueryValidation(NameAndTags string, v ValidationFunc) *Query {
 	if q.validations == nil {
 		q.validations = Validations{}
 	}
@@ -441,7 +441,7 @@ func (q *Query) AddValidation(NameAndTags string, v ValidationFunc) *Query {
 // RemoveValidation remove a validation from Query
 // You can provide full name of filter with tags or only name of filter:
 // RemoveValidation("id:int") and RemoveValidation("id") are equal
-func (q *Query) RemoveValidation(NameAndOrTags string) error {
+func (q *Query) RemoveQueryValidation(NameAndOrTags string) error {
 	for k := range q.validations {
 		if k == NameAndOrTags {
 			delete(q.validations, k)
@@ -459,7 +459,7 @@ func (q *Query) RemoveValidation(NameAndOrTags string) error {
 }
 
 // GetFilter returns filter by name
-func (q *Query) GetFilter(queryName string) (*Filter, error) {
+func (q *Query) GetQueryFilter(queryName string) (*Filter, error) {
 	for _, v := range q.Filters {
 		if v.QueryName == queryName {
 			return v, nil
@@ -496,8 +496,8 @@ func (q *Query) ReplaceNames(r Replacer) {
 			}
 		}
 		for i, v := range q.Sorts {
-			if v.ByRaw == name {
-				q.Sorts[i].ByRaw = newname
+			if v.QuerySortBy == name {
+				q.Sorts[i].QuerySortBy = newname
 				q.Sorts[i].ByParameterized = pName
 			}
 		}
@@ -545,11 +545,7 @@ func (q *Query) Where(tables ...string) string {
 
 	}
 
-	if where == "" {
-		return where
-	} else {
-		return " WHERE " + where
-	}
+	return where
 }
 
 // WHERE returns list of filters for WHERE SQL statement with `WHERE` word
@@ -557,7 +553,12 @@ func (q *Query) Where(tables ...string) string {
 // Return example: ` WHERE id > 0 AND email LIKE 'some@email.com'`
 //
 func (q *Query) WHERE(tables ...string) string {
-	return q.Where(tables...)
+	where := q.Where(tables...)
+	if where == "" {
+		return where
+	} else {
+		return " WHERE " + where
+	}
 }
 
 // Args returns slice of arguments for WHERE statement
@@ -935,7 +936,7 @@ func (q *Query) parseSort(value []string, validate ValidationFunc) error {
 		}
 
 		sort = append(sort, Sort{
-			ByRaw:           by,
+			QuerySortBy:     by,
 			ByParameterized: getParameterizedName(by, q.queryDbFieldMap),
 			Desc:            desc,
 		})
