@@ -9,10 +9,22 @@ import (
 	"github.com/pkg/errors"
 )
 
+type FieldType string
+
+const (
+	FieldTypeJson   = "json"
+	FieldTypeInt    = "int"
+	FieldTypeBool   = "bool"
+	FieldTypeCustom = "custom"
+	FieldTypeFloat  = "float"
+	FieldTypeString = "string"
+	FieldTypeTime   = "time"
+)
+
 type DatabaseField struct {
 	Name  string
 	Table string
-	Type  string
+	Type  FieldType
 }
 
 type QueryDbMap map[string]DatabaseField
@@ -154,7 +166,7 @@ func (q *Query) Select(tables ...string) string {
 				if stringInSlice(v.Table, tables) {
 					baseQueryField := strings.Split(k, ".")[0]
 					if baseQueryField == qf {
-						if v.Type == "custom" || v.Type == "json" {
+						if v.Type == FieldTypeCustom || v.Type == FieldTypeJson {
 							fieldNames = append(fieldNames, fmt.Sprintf("%s.%s", v.Table, baseQueryField))
 							newFieldNames = []string{}
 							break
@@ -849,7 +861,7 @@ func getParameterizedName(dbField DatabaseField, qdbm QueryDbMap) string {
 	if len(elems) > 1 {
 		for i, el := range elems[1:] {
 			t := detectType(cur, qdbm)
-			if t == "json" {
+			if t == FieldTypeJson {
 				if i == 0 {
 					jsonElems = append(jsonElems, fmt.Sprintf("%s.%s", dbField.Table, curFormatted))
 				} else {
@@ -857,7 +869,7 @@ func getParameterizedName(dbField DatabaseField, qdbm QueryDbMap) string {
 				}
 				cur = el
 				curFormatted = el
-			} else if t == "custom" {
+			} else if t == FieldTypeCustom {
 				if i == 0 {
 					curFormatted = fmt.Sprintf("(%s.%s).%s", dbField.Table, cur, el)
 				} else {
@@ -880,16 +892,16 @@ func getParameterizedName(dbField DatabaseField, qdbm QueryDbMap) string {
 }
 
 // recursive helper for extracting json
-func getParameterizedNameJsonHelper(outerType string, elems ...string) string {
+func getParameterizedNameJsonHelper(outerType FieldType, elems ...string) string {
 	if len(elems) == 1 {
 		switch outerType {
-		case "custom", "json":
+		case FieldTypeCustom, FieldTypeJson:
 			return elems[0]
-		case "string":
+		case FieldTypeString:
 			return fmt.Sprintf("%s::text", elems[0])
-		case "bool":
+		case FieldTypeBool:
 			return fmt.Sprintf("%s::text::boolean", elems[0])
-		case "time":
+		case FieldTypeTime:
 			return fmt.Sprintf("%s::text::timestamp with time zone", elems[0])
 		// int, float
 		default:
