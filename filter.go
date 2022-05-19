@@ -50,14 +50,14 @@ func detectValidation(name string, validations Validations) (ValidationFunc, boo
 }
 
 // detectType
-func detectType(queryName string, qdbm QueryDbMap) string {
+func detectType(queryName string, qdbm QueryDbMap) FieldType {
 	dbf, err := detectDbField(queryName, qdbm)
 	if err == nil {
 		return dbf.Type
 	}
 	// for special filters, assume json
 	// also safe bc json allowed methods are a subset of other types'
-	return "json" //, errors.New("could not find type")
+	return FieldTypeJson //, errors.New("could not find type")
 }
 
 // detectDbField
@@ -175,7 +175,7 @@ func (f *Filter) parseKey(key string) error {
 }
 
 // parseValue parses value depends on its type
-func (f *Filter) parseValue(valueType string, value string, delimiter string) error {
+func (f *Filter) parseValue(valueType FieldType, value string, delimiter string) error {
 
 	var list []string
 
@@ -186,27 +186,27 @@ func (f *Filter) parseValue(valueType string, value string, delimiter string) er
 	}
 
 	switch valueType {
-	case "int":
+	case FieldTypeInt:
 		err := f.setInt(list)
 		if err != nil {
 			return err
 		}
-	case "bool":
+	case FieldTypeBool:
 		err := f.setBool(list)
 		if err != nil {
 			return err
 		}
-	case "float":
+	case FieldTypeFloat:
 		err := f.setFloat(list)
 		if err != nil {
 			return err
 		}
-	case "custom", "json":
+	case FieldTypeCustom, FieldTypeJson:
 		err := f.setCustom(list)
 		if err != nil {
 			return err
 		}
-	case "time":
+	case FieldTypeTime:
 		err := f.setTime(list)
 		if err != nil {
 			return err
