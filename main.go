@@ -154,7 +154,7 @@ func (q *Query) Select(tables ...string) string {
 				if stringInSlice(v.Table, tables) {
 					baseQueryField := strings.Split(k, ".")[0]
 					if baseQueryField == qf {
-						if v.Type == "custom" {
+						if v.Type == "custom" || v.Type == "json" {
 							fieldNames = append(fieldNames, fmt.Sprintf("%s.%s", v.Table, baseQueryField))
 							newFieldNames = []string{}
 							break
@@ -299,7 +299,7 @@ func (q *Query) AddQuerySortBy(querySortBy string, desc bool) *Query {
 	}
 	q.Sorts = append(q.Sorts, Sort{
 		QuerySortBy:     querySortBy,
-		ByParameterized: getParameterizedName(dbField.Name, q.queryDbFieldMap),
+		ByParameterized: getParameterizedName(dbField, q.queryDbFieldMap),
 		Desc:            desc,
 	})
 	return q
@@ -333,7 +333,7 @@ func (q *Query) AddQueryFilter(queryName string, m Method, value interface{}) *Q
 	}
 	q.Filters = append(q.Filters, &Filter{
 		QueryName:         queryName,
-		ParameterizedName: getParameterizedName(dbField.Name, q.queryDbFieldMap),
+		ParameterizedName: getParameterizedName(dbField, q.queryDbFieldMap),
 		Method:            m,
 		Value:             value,
 		DbField:           dbField,
@@ -474,7 +474,7 @@ func (q *Query) GetQueryFilter(queryName string) (*Filter, error) {
 }
 
 // Replacer struct for ReplaceNames method
-type Replacer map[string]string
+// type Replacer map[string]string
 
 // ReplaceNames replace all specified name to new names
 // Sometimes we've to hijack properties, for example when we do JOINs,
@@ -485,30 +485,30 @@ type Replacer map[string]string
 //   rqp.ReplaceNames(rqp.Replacer{
 //	   "user_id": "users.user_id",
 //   })
-func (q *Query) ReplaceNames(r Replacer) {
+// func (q *Query) ReplaceNames(r Replacer) {
 
-	for name, newname := range r {
-		pName := getParameterizedName(newname, q.queryDbFieldMap)
-		for i, v := range q.Filters {
-			if v.QueryName == name {
-				q.Filters[i].QueryName = newname
-				q.Filters[i].ParameterizedName = pName
-			}
-		}
-		for i, v := range q.QueryFields {
-			if v == name {
-				q.QueryFields[i] = newname
-			}
-		}
-		for i, v := range q.Sorts {
-			if v.QuerySortBy == name {
-				q.Sorts[i].QuerySortBy = newname
-				q.Sorts[i].ByParameterized = pName
-			}
-		}
-	}
+// 	for name, newname := range r {
+// 		pName := getParameterizedName(newname, q.queryDbFieldMap)
+// 		for i, v := range q.Filters {
+// 			if v.QueryName == name {
+// 				q.Filters[i].QueryName = newname
+// 				q.Filters[i].ParameterizedName = pName
+// 			}
+// 		}
+// 		for i, v := range q.QueryFields {
+// 			if v == name {
+// 				q.QueryFields[i] = newname
+// 			}
+// 		}
+// 		for i, v := range q.Sorts {
+// 			if v.QuerySortBy == name {
+// 				q.Sorts[i].QuerySortBy = newname
+// 				q.Sorts[i].ByParameterized = pName
+// 			}
+// 		}
+// 	}
 
-}
+// }
 
 // Where returns list of filters for WHERE statement
 // return example: `id > 0 AND email LIKE 'some@email.com'`
@@ -841,8 +841,8 @@ func (q *Query) parseFilter(key, value string) error {
 
 // allow support for filters on nested custom/json properties,
 // e.g. pace.pacing_strategy
-func getParameterizedName(name string, qdbm QueryDbMap) string {
-	elems := strings.Split(name, ".")
+func getParameterizedName(dbField DatabaseField, qdbm QueryDbMap) string {
+	elems := strings.Split(dbField.Name, ".")
 	cur := elems[0]
 	curFormatted := elems[0]
 	var jsonElems []string
@@ -850,27 +850,33 @@ func getParameterizedName(name string, qdbm QueryDbMap) string {
 		for i, el := range elems[1:] {
 			t := detectType(cur, qdbm)
 			if t == "json" {
-				jsonElems = append(jsonElems, curFormatted)
+				if i == 0 {
+					jsonElems = append(jsonElems, fmt.Sprintf("%s.%s", dbField.Table, curFormatted))
+				} else {
+					jsonElems = append(jsonElems, curFormatted)
+				}
 				cur = el
 				curFormatted = el
 			} else if t == "custom" {
 				if i == 0 {
-					curFormatted = fmt.Sprintf("(%s).%s", cur, el)
+					curFormatted = fmt.Sprintf("(%s.%s).%s", dbField.Table, cur, el)
 				} else {
 					curFormatted = fmt.Sprintf("%s.%s", curFormatted, el)
 				}
 				cur = fmt.Sprintf("%s.%s", cur, el)
 			} else {
-				return name
+				return fmt.Sprintf("%s.%s", dbField.Table, dbField.Name)
 			}
 		}
 		jsonElems = append(jsonElems, curFormatted)
 		if len(jsonElems) > 1 {
-			t := detectType(name, qdbm)
+			t := detectType(dbField.Name, qdbm)
 			return getParameterizedNameJsonHelper(t, jsonElems...)
 		}
+		return curFormatted
+	} else {
+		return fmt.Sprintf("%s.%s", dbField.Table, curFormatted)
 	}
-	return curFormatted
 }
 
 // recursive helper for extracting json
@@ -952,9 +958,13 @@ func (q *Query) parseSort(value []string, validate ValidationFunc) error {
 			}
 		}
 
+		dbField, err := detectDbField(by, q.queryDbFieldMap)
+		if err != nil {
+			panic("could not find db field for filter")
+		}
 		sort = append(sort, Sort{
 			QuerySortBy:     by,
-			ByParameterized: getParameterizedName(by, q.queryDbFieldMap),
+			ByParameterized: getParameterizedName(dbField, q.queryDbFieldMap),
 			Desc:            desc,
 		})
 	}
