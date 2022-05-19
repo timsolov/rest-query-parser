@@ -111,7 +111,7 @@ func newFilter(rawKey string, value string, delimiter string, validations Valida
 	if err != nil {
 		return f, ErrValidationNotFound
 	}
-	f.ParameterizedName = getParameterizedName(dbField.Name, qdbm)
+	f.ParameterizedName = getParameterizedName(dbField, qdbm)
 	f.DbField = dbField
 
 	return f, nil
