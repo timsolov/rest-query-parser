@@ -2,6 +2,7 @@ package rqp
 
 import (
 	"net/url"
+	"reflect"
 	"testing"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
@@ -610,4 +611,17 @@ func ExampleQuery_AddORFilters() {
 		query.AddFilter("lastname", ILIKE, "*hello*")
 	})
 	q.SQL("table") // SELECT * FROM table WHERE test = ? AND (firstname ILIKE ? OR lastname ILIKE ?)
+}
+
+func TestQuery_Clone(t *testing.T) {
+	q := New().
+		SetLimit(10).
+		SetOffset(1).
+		AddField("id").
+		AddFilter("id", EQ, "123").
+		AddValidation("id:required", nil)
+
+	if got := q.Clone(); !reflect.DeepEqual(got, q) {
+		t.Errorf("Query.Clone() = %v, want %v", got, q)
+	}
 }

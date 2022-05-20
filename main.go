@@ -373,6 +373,51 @@ func (q *Query) RemoveValidation(NameAndOrTags string) error {
 	return ErrValidationNotFound
 }
 
+// SetOffset sets Offset of query
+func (q *Query) SetOffset(offset int) *Query {
+	q.Offset = offset
+	return q
+}
+
+// SetLimit sets Offset of query
+func (q *Query) SetLimit(limit int) *Query {
+	q.Limit = limit
+	return q
+}
+
+// Clone makes copy of Query
+func (q *Query) Clone() *Query {
+	qNew := &Query{
+		query:         make(map[string][]string),
+		validations:   make(Validations),
+		Offset:        q.Offset,
+		Limit:         q.Limit,
+		delimiterIN:   q.delimiterIN,
+		delimiterOR:   q.delimiterOR,
+		ignoreUnknown: q.ignoreUnknown,
+		Error:         q.Error,
+	}
+
+	// copy query map
+	for key := range q.query {
+		copy(qNew.query[key], q.query[key])
+	}
+
+	// copy validations
+	for key := range q.validations {
+		qNew.validations[key] = q.validations[key]
+	}
+
+	// copy Fields
+	copy(qNew.Fields, q.Fields)
+	// copy Sorts
+	copy(qNew.Sorts, q.Sorts)
+	// copy Filters
+	copy(qNew.Filters, q.Filters)
+
+	return q
+}
+
 // GetFilter returns filter by name
 func (q *Query) GetFilter(name string) (*Filter, error) {
 
