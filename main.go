@@ -388,8 +388,6 @@ func (q *Query) SetLimit(limit int) *Query {
 // Clone makes copy of Query
 func (q *Query) Clone() *Query {
 	qNew := &Query{
-		query:         make(map[string][]string),
-		validations:   make(Validations),
 		Offset:        q.Offset,
 		Limit:         q.Limit,
 		delimiterIN:   q.delimiterIN,
@@ -399,23 +397,41 @@ func (q *Query) Clone() *Query {
 	}
 
 	// copy query map
-	for key := range q.query {
-		copy(qNew.query[key], q.query[key])
+	if q.query != nil {
+		qNew.query = make(map[string][]string)
+		for key := range q.query {
+			if len(q.query[key]) > 0 {
+				qNew.query[key] = make([]string, len(q.query[key]), cap(q.query[key]))
+				copy(qNew.query[key], q.query[key])
+			}
+		}
 	}
 
 	// copy validations
-	for key := range q.validations {
-		qNew.validations[key] = q.validations[key]
+	if q.validations != nil {
+		qNew.validations = make(Validations)
+		for key := range q.validations {
+			qNew.validations[key] = q.validations[key]
+		}
 	}
 
 	// copy Fields
-	copy(qNew.Fields, q.Fields)
+	if q.Fields != nil {
+		qNew.Fields = make([]string, len(q.Fields), cap(q.Fields))
+		copy(qNew.Fields, q.Fields)
+	}
 	// copy Sorts
-	copy(qNew.Sorts, q.Sorts)
+	if q.Sorts != nil {
+		qNew.Sorts = make([]Sort, len(q.Sorts), cap(q.Sorts))
+		copy(qNew.Sorts, q.Sorts)
+	}
 	// copy Filters
-	copy(qNew.Filters, q.Filters)
+	if q.Filters != nil {
+		qNew.Filters = make([]*Filter, len(q.Filters), cap(q.Filters))
+		copy(qNew.Filters, q.Filters)
+	}
 
-	return q
+	return qNew
 }
 
 // GetFilter returns filter by name

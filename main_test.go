@@ -290,6 +290,8 @@ func TestWhere(t *testing.T) {
 			} else {
 				assert.Equal(t, c.expected, where)
 			}
+
+			QueryEqual(t, q, q.Clone())
 		})
 	}
 }
@@ -614,14 +616,40 @@ func ExampleQuery_AddORFilters() {
 }
 
 func TestQuery_Clone(t *testing.T) {
-	q := New().
-		SetLimit(10).
-		SetOffset(1).
-		AddField("id").
-		AddFilter("id", EQ, "123").
-		AddValidation("id:required", nil)
+	q := New()
+	assert.NoError(t, q.SetUrlString("?offset=0&limit=10&fields=id&id=123"))
+	q.AddValidation("id", func(value interface{}) error {
+		return nil
+	})
 
-	if got := q.Clone(); !reflect.DeepEqual(got, q) {
-		t.Errorf("Query.Clone() = %v, want %v", got, q)
+	QueryEqual(t, q, q.Clone())
+}
+
+func QueryEqual(t *testing.T, q, got *Query) {
+	if !reflect.DeepEqual(q.query, got.query) {
+		t.Errorf("q.query = %v , want = %v", got.query, q.query)
+	}
+	for k, origFunc := range q.validations {
+		gotFunc, ok := got.validations[k]
+		if assert.True(t, ok, "got.validations[%s] not present", k) {
+			origPtr := reflect.ValueOf(origFunc).Pointer()
+			gotPtr := reflect.ValueOf(gotFunc).Pointer()
+			assert.Equal(t, origPtr, gotPtr)
+		}
+	}
+	if !reflect.DeepEqual(q.Fields, got.Fields) {
+		t.Errorf("q.Fields = %v , want = %v", got.Fields, q.Fields)
+	}
+	if !reflect.DeepEqual(q.Offset, got.Offset) {
+		t.Errorf("q.Offset = %v , want = %v", got.Offset, q.Offset)
+	}
+	if !reflect.DeepEqual(q.Limit, got.Limit) {
+		t.Errorf("q.Limit = %v , want = %v", got.Limit, q.Limit)
+	}
+	if !reflect.DeepEqual(q.Sorts, got.Sorts) {
+		t.Errorf("q.Sorts = %v , want = %v", got.Sorts, q.Sorts)
+	}
+	if !reflect.DeepEqual(q.Filters, got.Filters) {
+		t.Errorf("q.Filters = %v , want = %v", got.Filters, q.Filters)
 	}
 }
