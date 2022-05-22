@@ -22,9 +22,10 @@ const (
 )
 
 type DatabaseField struct {
-	Name  string
-	Table string
-	Type  FieldType
+	Name     string
+	Table    string
+	Type     FieldType
+	IsNested bool
 }
 
 type QueryDbMap map[string]DatabaseField
@@ -125,25 +126,17 @@ func (q *Query) SetDelimiterOR(d string) *Query {
 	return q
 }
 
-// FieldsString returns elements list separated by comma (",") for querying in SELECT statement or a star ("*") if nothing provided
-//
-// Return example:
-//
-// When "fields" empty or not provided: `*`.
-//
-// When "fields=id,email": `id, email`.
-//
-func (q *Query) FieldsString(tables ...string) string {
-	return q.Select(tables...)
-}
-
-func (q *Query) FieldsNames() []string {
-	fieldNames := []string{}
-	for _, f := range q.QueryFields {
-		fieldNames = append(fieldNames, f)
-	}
-	return fieldNames
-}
+// // FieldsString returns elements list separated by comma (",") for querying in SELECT statement or a star ("*") if nothing provided
+// //
+// // Return example:
+// //
+// // When "fields" empty or not provided: `*`.
+// //
+// // When "fields=id,email": `id, email`.
+// //
+// func (q *Query) FieldsString(tables ...string) string {
+// 	return q.Select(tables...)
+// }
 
 // Select returns elements list separated by comma (",") for querying in SELECT statement or a star ("*") if nothing provided
 //
@@ -166,7 +159,7 @@ func (q *Query) Select(tables ...string) string {
 				if stringInSlice(v.Table, tables) {
 					baseQueryField := strings.Split(k, ".")[0]
 					if baseQueryField == qf {
-						if v.Type == FieldTypeCustom || v.Type == FieldTypeJson {
+						if v.IsNested {
 							fieldNames = append(fieldNames, fmt.Sprintf("%s.%s", v.Table, baseQueryField))
 							newFieldNames = []string{}
 							break
