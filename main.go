@@ -148,28 +148,12 @@ func (q *Query) SetDelimiterOR(d string) *Query {
 //
 func (q *Query) Select(tables ...string) string {
 	fieldNames := []string{}
-	if len(q.QueryFields) == 0 {
-		for _, table := range tables {
-			fieldNames = append(fieldNames, fmt.Sprintf("%s.*", table))
-		}
-	} else {
-		for _, qf := range q.QueryFields {
-			newFieldNames := []string{}
-			for k, v := range q.queryDbFieldMap {
-				if stringInSlice(v.Table, tables) {
-					baseQueryField := strings.Split(k, ".")[0]
-					if baseQueryField == qf {
-						if v.IsNested {
-							fieldNames = append(fieldNames, fmt.Sprintf("%s.%s", v.Table, baseQueryField))
-							newFieldNames = []string{}
-							break
-						} else {
-							newFieldNames = append(newFieldNames, fmt.Sprintf("%s.%s", v.Table, v.Name))
-						}
-					}
-				}
+	for k, v := range q.queryDbFieldMap {
+		if stringInSlice(v.Table, tables) {
+			baseQueryField := strings.Split(k, ".")[0]
+			if (len(q.QueryFields) == 0 || stringInSlice(baseQueryField, q.QueryFields)) && !v.IsNested {
+				fieldNames = append(fieldNames, fmt.Sprintf("%s.%s", v.Table, v.Name))
 			}
-			fieldNames = append(fieldNames, newFieldNames...)
 		}
 	}
 	return strings.Join(fieldNames, ", ")
@@ -185,16 +169,18 @@ func (q *Query) Select(tables ...string) string {
 // When "fields=id,email": `SELECT id, email`.
 //
 func (q *Query) SELECT(tables ...string) string {
-	if len(q.QueryFields) == 0 {
+	sel := q.Select(tables...)
+	if sel == "" {
 		return "SELECT *"
+	} else {
+		return "SELECT " + sel
 	}
-	return fmt.Sprintf("SELECT %s", q.Select(tables...))
 }
 
 // HaveQueryField returns true if request asks for specified field
-func (q *Query) HaveQueryField(name string) bool {
+func (q *Query) HaveQueryField(queryName string) bool {
 	for _, b := range q.QueryFields {
-		if b == name {
+		if b == queryName {
 			return true
 		}
 	}
