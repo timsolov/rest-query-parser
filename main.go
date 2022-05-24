@@ -128,12 +128,12 @@ func (q *Query) SetDelimiterOR(d string) *Query {
 
 // UsesTables returns true if the query uses a database field on the table
 func (q *Query) UsesTable(table string) bool {
-	return q.HaveQuerySortByOnTable(table) || q.HaveQueryFieldsOnTable(table) || q.HaveQuerySortByOnTable(table)
+	return q.HaveQuerySortByOnTable(table) || q.HaveQueryFieldsOnTable(table) || q.HaveQueryFiltersOnTable(table)
 }
 
 // UsesAnyTables returns true if the query uses a database field on ANY of the tables
 func (q *Query) UsesAnyTables(tables ...string) bool {
-	return q.HaveQuerySortByOnAnyTables(tables...) || q.HaveQueryFieldsOnAnyTables(tables...) || q.HaveQuerySortByOnAnyTables(tables...)
+	return q.HaveQuerySortByOnAnyTables(tables...) || q.HaveQueryFieldsOnAnyTables(tables...) || q.HaveQueryFiltersOnAnyTables(tables...)
 }
 
 // // FieldsString returns elements list separated by comma (",") for querying in SELECT statement or a star ("*") if nothing provided
@@ -338,11 +338,11 @@ func (q *Query) AddQuerySortBy(querySortBy string, desc bool) *Query {
 
 // HaveQueryFiltersOnTable returns true if request filters by a field on the specified table
 func (q *Query) HaveQueryFiltersOnTable(table string) bool {
-	return q.HaveQueryFiltersOnTables(table)
+	return q.HaveQueryFiltersOnAnyTables(table)
 }
 
-// HaveQueryFiltersOnTables returns true if request filters by a field on ANY of specified tables
-func (q *Query) HaveQueryFiltersOnTables(tables ...string) bool {
+// HaveQueryFiltersOnAnyTables returns true if request filters by a field on ANY of specified tables
+func (q *Query) HaveQueryFiltersOnAnyTables(tables ...string) bool {
 	for _, v := range q.Filters {
 		if stringInSlice(v.DbField.Table, tables) {
 			return true
