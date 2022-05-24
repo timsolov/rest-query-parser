@@ -126,6 +126,10 @@ func (q *Query) SetDelimiterOR(d string) *Query {
 	return q
 }
 
+func (q *Query) UsesTable(table string) bool {
+	return q.HaveQuerySortByOnTable(table) || q.HaveQueryFieldsOnTable(table) || q.HaveQuerySortByOnTable(table)
+}
+
 // // FieldsString returns elements list separated by comma (",") for querying in SELECT statement or a star ("*") if nothing provided
 // //
 // // Return example:
@@ -270,6 +274,17 @@ func (q *Query) ORDER() string {
 		return ""
 	}
 	return fmt.Sprintf(" ORDER BY %s", q.Order())
+}
+
+func (q *Query) HaveQuerySortByOnTable(table string) bool {
+	for _, v := range q.Sorts {
+		if dbf, ok := q.queryDbFieldMap[v.QuerySortBy]; ok {
+			if dbf.Table == table {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // HaveSortBy returns true if request contains sorting by specified in by field name
