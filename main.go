@@ -126,8 +126,14 @@ func (q *Query) SetDelimiterOR(d string) *Query {
 	return q
 }
 
+// UsesTables returns true if the query uses a database field on the table
 func (q *Query) UsesTable(table string) bool {
 	return q.HaveQuerySortByOnTable(table) || q.HaveQueryFieldsOnTable(table) || q.HaveQuerySortByOnTable(table)
+}
+
+// UsesAnyTables returns true if the query uses a database field on ANY of the tables
+func (q *Query) UsesAnyTables(tables ...string) bool {
+	return q.HaveQuerySortByOnAnyTables(tables...) || q.HaveQueryFieldsOnAnyTables(tables...) || q.HaveQuerySortByOnAnyTables(tables...)
 }
 
 // // FieldsString returns elements list separated by comma (",") for querying in SELECT statement or a star ("*") if nothing provided
@@ -152,13 +158,9 @@ func (q *Query) UsesTable(table string) bool {
 //
 func (q *Query) Select(tables ...string) string {
 	fieldNames := []string{}
-	for k, v := range q.queryDbFieldMap {
-		if stringInSlice(v.Table, tables) {
-			baseQueryField := strings.Split(k, ".")[0]
-			if (len(q.QueryFields) == 0 || stringInSlice(baseQueryField, q.QueryFields)) && !v.IsNested {
-				fieldNames = append(fieldNames, fmt.Sprintf("%s.%s", v.Table, v.Name))
-			}
-		}
+	dbFields := q.getQueryDbFields(tables...)
+	for _, v := range dbFields {
+		fieldNames = append(fieldNames, fmt.Sprintf("%s.%s", v.Table, v.Name))
 	}
 	return strings.Join(fieldNames, ", ")
 }
@@ -191,16 +193,33 @@ func (q *Query) HaveQueryField(queryName string) bool {
 	return false
 }
 
-// HaveQueryFieldsOnTable returns true if request asks for specified table
+// HaveQueryFieldsOnTable returns true if request asks for a field on the specified table
 func (q *Query) HaveQueryFieldsOnTable(table string) bool {
-	for _, qf := range q.QueryFields {
-		if dbf, ok := q.queryDbFieldMap[qf]; ok {
-			if dbf.Table == table {
-				return true
-			}
+	return q.HaveQueryFieldsOnAnyTables(table)
+}
+
+// HaveQueryFieldsOnAnyTables returns true if request asks for a field on ANY of specified tables
+func (q *Query) HaveQueryFieldsOnAnyTables(tables ...string) bool {
+	dbFields := q.getQueryDbFields(tables...)
+	for _, dbf := range dbFields {
+		if stringInSlice(dbf.Table, tables) {
+			return true
 		}
 	}
 	return false
+}
+
+func (q *Query) getQueryDbFields(tables ...string) []DatabaseField {
+	fields := []DatabaseField{}
+	for k, v := range q.queryDbFieldMap {
+		if stringInSlice(v.Table, tables) {
+			baseQueryField := strings.Split(k, ".")[0]
+			if (len(q.QueryFields) == 0 || stringInSlice(baseQueryField, q.QueryFields)) && !v.IsNested {
+				fields = append(fields, v)
+			}
+		}
+	}
+	return fields
 }
 
 // AddField adds field to SELECT statement
@@ -276,10 +295,16 @@ func (q *Query) ORDER() string {
 	return fmt.Sprintf(" ORDER BY %s", q.Order())
 }
 
+// HaveQuerySortByOnTable returns true if request sorts by a field on the specified table
 func (q *Query) HaveQuerySortByOnTable(table string) bool {
+	return q.HaveQuerySortByOnAnyTables(table)
+}
+
+// HaveQuerySortByOnAnyTables returns true if request sorts by a field on ANY of specified tables
+func (q *Query) HaveQuerySortByOnAnyTables(tables ...string) bool {
 	for _, v := range q.Sorts {
 		if dbf, ok := q.queryDbFieldMap[v.QuerySortBy]; ok {
-			if dbf.Table == table {
+			if stringInSlice(dbf.Table, tables) {
 				return true
 			}
 		}
@@ -311,10 +336,15 @@ func (q *Query) AddQuerySortBy(querySortBy string, desc bool) *Query {
 	return q
 }
 
-// HaveFilter returns true if request contains some filter
+// HaveQueryFiltersOnTable returns true if request filters by a field on the specified table
 func (q *Query) HaveQueryFiltersOnTable(table string) bool {
+	return q.HaveQueryFiltersOnTables(table)
+}
+
+// HaveQueryFiltersOnTables returns true if request filters by a field on ANY of specified tables
+func (q *Query) HaveQueryFiltersOnTables(tables ...string) bool {
 	for _, v := range q.Filters {
-		if v.DbField.Table == table {
+		if stringInSlice(v.DbField.Table, tables) {
 			return true
 		}
 	}
