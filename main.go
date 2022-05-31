@@ -26,6 +26,7 @@ type DatabaseField struct {
 	Table    string
 	Type     FieldType
 	IsNested bool
+	Alias    string
 }
 
 type QueryDbMap map[string]DatabaseField
@@ -160,7 +161,11 @@ func (q *Query) Select(tables ...string) string {
 	fieldNames := []string{}
 	dbFields := q.getQueryDbFields(tables...)
 	for _, v := range dbFields {
-		fieldNames = append(fieldNames, fmt.Sprintf("%s.%s", v.Table, v.Name))
+		fName := fmt.Sprintf("%s.%s", v.Table, v.Name)
+		if v.Alias != "" {
+			fName += " AS " + v.Alias
+		}
+		fieldNames = append(fieldNames, fName)
 	}
 	return strings.Join(fieldNames, ", ")
 }
