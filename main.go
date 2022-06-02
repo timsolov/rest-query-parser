@@ -39,8 +39,8 @@ type Query struct {
 	queryDbFieldMap QueryDbMap
 
 	QueryFields []string
-	Offset      int
-	Limit       int
+	Page        int
+	PageSize    int
 	Sorts       []Sort
 	Filters     []*Filter
 
@@ -238,14 +238,14 @@ func (q *Query) AddQueryField(queryName string) *Query {
 // Return example: ` OFFSET 0`
 //
 func (q *Query) OFFSET() string {
-	if q.Offset > 0 {
-		return fmt.Sprintf(" OFFSET %d", q.Offset)
+	if q.Page > 1 && q.PageSize > 0 {
+		return fmt.Sprintf(" OFFSET %d", (q.Page-1)*q.PageSize)
 	}
 	return ""
 }
 
-func (q *Query) SetOffset(offset int) *Query {
-	q.Offset = offset
+func (q *Query) SetPage(page int) *Query {
+	q.Page = page
 	return q
 }
 
@@ -254,14 +254,14 @@ func (q *Query) SetOffset(offset int) *Query {
 // Return example: ` LIMIT 100`
 //
 func (q *Query) LIMIT() string {
-	if q.Limit > 0 {
-		return fmt.Sprintf(" LIMIT %d", q.Limit)
+	if q.PageSize > 0 {
+		return fmt.Sprintf(" LIMIT %d", q.PageSize)
 	}
 	return ""
 }
 
-func (q *Query) SetLimit(limit int) *Query {
-	q.Limit = limit
+func (q *Query) SetPageSize(pageSize int) *Query {
+	q.PageSize = pageSize
 	return q
 }
 
@@ -725,13 +725,13 @@ func (q *Query) Parse() (err error) {
 			low = strings.ReplaceAll(low, "[in]", "")
 			err = q.parseFields(values)
 			delete(requiredNames, low)
-		case "offset", "offset[in]":
+		case "page", "page[in]":
 			low = strings.ReplaceAll(low, "[in]", "")
-			err = q.parseOffset(values, q.validations[low])
+			err = q.parsePage(values, q.validations[low])
 			delete(requiredNames, low)
-		case "limit", "limit[in]":
+		case "page_size", "page_size[in]":
 			low = strings.ReplaceAll(low, "[in]", "")
-			err = q.parseLimit(values, q.validations[low])
+			err = q.parsePageSize(values, q.validations[low])
 			delete(requiredNames, low)
 		case "sort", "sort[in]":
 			low = strings.ReplaceAll(low, "[in]", "")
@@ -790,8 +790,8 @@ func (q *Query) requiredNames() map[string]bool {
 			low := strings.ToLower(name)
 			switch low {
 			case "fields", "fields[in]",
-				"offset", "offset[in]",
-				"limit", "limit[in]",
+				"page", "page[in]",
+				"page_size", "page_size[in]",
 				"sort", "sort[in]":
 				low = strings.ReplaceAll(low, "[in]", "")
 				required[low] = true
@@ -1044,7 +1044,7 @@ func (q *Query) parseFields(value []string) error {
 	return nil
 }
 
-func (q *Query) parseOffset(value []string, validate ValidationFunc) error {
+func (q *Query) parsePage(value []string, validate ValidationFunc) error {
 
 	if len(value) != 1 {
 		return ErrBadFormat
@@ -1061,7 +1061,7 @@ func (q *Query) parseOffset(value []string, validate ValidationFunc) error {
 		return ErrBadFormat
 	}
 
-	if i < 0 {
+	if i < 1 {
 		return errors.Wrapf(ErrNotInScope, "%d", i)
 	}
 
@@ -1071,12 +1071,12 @@ func (q *Query) parseOffset(value []string, validate ValidationFunc) error {
 		}
 	}
 
-	q.Offset = i
+	q.Page = i
 
 	return nil
 }
 
-func (q *Query) parseLimit(value []string, validate ValidationFunc) error {
+func (q *Query) parsePageSize(value []string, validate ValidationFunc) error {
 
 	if len(value) != 1 {
 		return ErrBadFormat
@@ -1103,7 +1103,7 @@ func (q *Query) parseLimit(value []string, validate ValidationFunc) error {
 		}
 	}
 
-	q.Limit = i
+	q.PageSize = i
 
 	return nil
 }

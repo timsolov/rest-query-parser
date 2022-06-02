@@ -119,7 +119,7 @@ func TestOffset(t *testing.T) {
 		assert.NoError(t, err)
 		q := New().
 			SetUrlQuery(URL.Query()).
-			AddValidation("offset", Max(10))
+			AddValidation("page", Max(10))
 		err = q.Parse()
 		assert.Equal(t, c.err, errors.Cause(err))
 		assert.Equal(t, c.expected, q.OFFSET())
@@ -148,7 +148,7 @@ func TestLimit(t *testing.T) {
 			assert.NoError(t, err)
 			q := New().
 				SetUrlQuery(URL.Query()).
-				AddValidation("limit", Multi(Min(2), Max(10)))
+				AddValidation("page_size", Multi(Min(2), Max(10)))
 			err = q.Parse()
 			assert.Equal(t, c.err, errors.Cause(err))
 			assert.Equal(t, c.expected, q.LIMIT())
@@ -422,22 +422,22 @@ func TestRequiredFilter(t *testing.T) {
 	URL, err := url.Parse("?")
 	assert.NoError(t, err)
 
-	_, err = NewParse(URL.Query(), Validations{"limit:required": nil})
-	assert.EqualError(t, err, "limit: required")
+	_, err = NewParse(URL.Query(), Validations{"page_size:required": nil})
+	assert.EqualError(t, err, "page_size: required")
 
 	// required and present
 	URL, err = url.Parse("?limit=10&one[eq]=1&count=4")
 	assert.NoError(t, err)
 
 	qp, err := NewParse(URL.Query(), Validations{
-		"limit:required":     nil,
+		"page_size:required": nil,
 		"one:int":            nil,
 		"count:int:required": nil,
 	})
 	assert.NoError(t, err)
-	_, present := qp.validations["limit:required"]
+	_, present := qp.validations["page_size:required"]
 	assert.False(t, present)
-	_, present = qp.validations["limit"]
+	_, present = qp.validations["page_size"]
 	assert.True(t, present)
 }
 
