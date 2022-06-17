@@ -3,6 +3,7 @@ package rqp
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -226,7 +227,21 @@ func (f *Filter) Where() (string, error) {
 	var exp string
 
 	switch f.Method {
-	case EQ, NE, GT, LT, GTE, LTE, LIKE, ILIKE, NLIKE, NILIKE:
+	case EQ, NE:
+		switch reflect.ValueOf(f.Value).Kind() {
+		case reflect.Slice:
+			method := IN
+			if f.Method == NE {
+				method = NIN
+			}
+			exp = fmt.Sprintf("%s %s (?)", f.ParameterizedName, translateMethods[method])
+			exp, _, _ = in(exp, f.Value)
+			return exp, nil
+		default:
+			exp = fmt.Sprintf("%s %s ?", f.ParameterizedName, translateMethods[f.Method])
+			return exp, nil
+		}
+	case GT, LT, GTE, LTE, LIKE, ILIKE, NLIKE, NILIKE:
 		exp = fmt.Sprintf("%s %s ?", f.ParameterizedName, translateMethods[f.Method])
 		return exp, nil
 	case IS, NOT:
@@ -302,18 +317,20 @@ func (f *Filter) setInt(list []string) error {
 			return ErrMethodNotAllowed
 		}
 	} else {
-		if f.Method != IN && f.Method != NIN {
+		switch f.Method {
+		case IN, NIN, EQ, NE:
+			intSlice := make([]int, len(list))
+			for i, s := range list {
+				v, err := strconv.Atoi(s)
+				if err != nil {
+					return ErrBadFormat
+				}
+				intSlice[i] = v
+			}
+			f.Value = intSlice
+		default:
 			return ErrMethodNotAllowed
 		}
-		intSlice := make([]int, len(list))
-		for i, s := range list {
-			v, err := strconv.Atoi(s)
-			if err != nil {
-				return ErrBadFormat
-			}
-			intSlice[i] = v
-		}
-		f.Value = intSlice
 	}
 	return nil
 }
@@ -338,18 +355,20 @@ func (f *Filter) setFloat(list []string) error {
 			return ErrMethodNotAllowed
 		}
 	} else {
-		if f.Method != IN && f.Method != NIN {
+		switch f.Method {
+		case IN, NIN, EQ, NE:
+			floatSlice := make([]float64, len(list))
+			for i, s := range list {
+				v, err := strconv.ParseFloat(s, 64)
+				if err != nil {
+					return ErrBadFormat
+				}
+				floatSlice[i] = v
+			}
+			f.Value = floatSlice
+		default:
 			return ErrMethodNotAllowed
 		}
-		floatSlice := make([]float64, len(list))
-		for i, s := range list {
-			v, err := strconv.ParseFloat(s, 64)
-			if err != nil {
-				return ErrBadFormat
-			}
-			floatSlice[i] = v
-		}
-		f.Value = floatSlice
 	}
 	return nil
 }
@@ -397,7 +416,7 @@ func (f *Filter) setString(list []string) error {
 		}
 	} else {
 		switch f.Method {
-		case IN, NIN:
+		case IN, NIN, EQ, NE:
 			f.Value = list
 			return nil
 		}
@@ -442,7 +461,7 @@ func (f *Filter) setTime(list []string) error {
 		}
 	} else {
 		switch f.Method {
-		case IN, NIN:
+		case IN, NIN, EQ, NE:
 			f.Value = list
 			return nil
 		}
