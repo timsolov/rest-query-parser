@@ -267,7 +267,17 @@ func (f *Filter) Args() ([]interface{}, error) {
 	args := make([]interface{}, 0)
 
 	switch f.Method {
-	case EQ, NE, GT, LT, GTE, LTE:
+	case EQ, NE:
+		switch reflect.ValueOf(f.Value).Kind() {
+		case reflect.Slice:
+			_, params, _ := in("?", f.Value)
+			args = append(args, params...)
+			return args, nil
+		default:
+			args = append(args, f.Value)
+			return args, nil
+		}
+	case GT, LT, GTE, LTE:
 		args = append(args, f.Value)
 		return args, nil
 	case IS, NOT:
