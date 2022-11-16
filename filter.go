@@ -169,7 +169,7 @@ func (f *Filter) parseValue(valueType string, value string, delimiter string) er
 
 	var list []string
 
-	if strings.Contains(value, delimiter) {
+	if strings.Contains(value, delimiter) && (f.Method == IN || f.Method == NIN) {
 		list = strings.Split(value, delimiter)
 	} else {
 		list = append(list, value)
