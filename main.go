@@ -156,7 +156,6 @@ func (q *Query) UsesAnyTables(tables ...string) bool {
 // When "fields" empty or not provided: `*`
 //
 // When "fields=id,email": `id, email`
-//
 func (q *Query) Select(tables ...string) string {
 	fieldNames := []string{}
 	dbFields := q.getQueryDbFields(tables...)
@@ -178,7 +177,6 @@ func (q *Query) Select(tables ...string) string {
 // When "fields" empty or not provided: `SELECT *`.
 //
 // When "fields=id,email": `SELECT id, email`.
-//
 func (q *Query) SELECT(tables ...string) string {
 	sel := q.Select(tables...)
 	if sel == "" {
@@ -236,7 +234,6 @@ func (q *Query) AddQueryField(queryName string) *Query {
 // OFFSET returns word OFFSET with number
 //
 // Return example: ` OFFSET 0`
-//
 func (q *Query) OFFSET() string {
 	if q.Page > 1 && q.PageSize > 0 {
 		return fmt.Sprintf(" OFFSET %d", (q.Page-1)*q.PageSize)
@@ -252,7 +249,6 @@ func (q *Query) SetPage(page int) *Query {
 // LIMIT returns word LIMIT with number
 //
 // Return example: ` LIMIT 100`
-//
 func (q *Query) LIMIT() string {
 	if q.PageSize > 0 {
 		return fmt.Sprintf(" LIMIT %d", q.PageSize)
@@ -597,7 +593,6 @@ func (q *Query) Where(tables ...string) string {
 // WHERE returns list of filters for WHERE SQL statement with `WHERE` word
 //
 // Return example: ` WHERE id > 0 AND email LIKE 'some@email.com'`
-//
 func (q *Query) WHERE(tables ...string) string {
 	where := q.Where(tables...)
 	if where == "" {
@@ -725,12 +720,12 @@ func (q *Query) Parse() (err error) {
 			low = strings.ReplaceAll(low, "[in]", "")
 			err = q.parseFields(values)
 			delete(requiredNames, low)
-		case "page", "page[in]":
-			low = strings.ReplaceAll(low, "[in]", "")
+		case "page", "page[eq]":
+			low = strings.ReplaceAll(low, "[eq]", "")
 			err = q.parsePage(values, q.validations[low])
 			delete(requiredNames, low)
-		case "page_size", "page_size[in]":
-			low = strings.ReplaceAll(low, "[in]", "")
+		case "page_size", "page_size[eq]":
+			low = strings.ReplaceAll(low, "[eq]", "")
 			err = q.parsePageSize(values, q.validations[low])
 			delete(requiredNames, low)
 		case "sort", "sort[in]":
