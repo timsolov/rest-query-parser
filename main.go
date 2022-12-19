@@ -19,6 +19,7 @@ const (
 	FieldTypeFloat  = "float"
 	FieldTypeString = "string"
 	FieldTypeTime   = "time"
+	FieldTypeArray  = "array"
 )
 
 type DatabaseField struct {
@@ -47,7 +48,7 @@ type Query struct {
 	delimiterIN           string
 	delimiterOR           string
 	ignoreUnknown         bool
-	allowedSpecialFilters []string
+	allowedSpecialFilters map[string]FieldType
 
 	Error error
 }
@@ -110,8 +111,8 @@ func (q *Query) IgnoreUnknownFilters(i bool) *Query {
 }
 
 // set behavior for Parser to not raise ErrFilterNotAllowed for these undefined filters or not
-func (q *Query) AllowSpecialFilters(names ...string) *Query {
-	q.allowedSpecialFilters = names
+func (q *Query) AllowSpecialFilters(filters map[string]FieldType) *Query {
+	q.allowedSpecialFilters = filters
 	return q
 }
 
@@ -331,7 +332,7 @@ func (q *Query) AddQuerySortBy(querySortBy string, desc bool) *Query {
 	}
 	q.Sorts = append(q.Sorts, Sort{
 		QuerySortBy:     querySortBy,
-		ByParameterized: getParameterizedName(dbField, q.queryDbFieldMap),
+		ByParameterized: getParameterizedName(dbField, q.queryDbFieldMap, q.allowedSpecialFilters),
 		Desc:            desc,
 	})
 	return q
@@ -370,7 +371,7 @@ func (q *Query) AddQueryFilter(queryName string, m Method, value interface{}) *Q
 	}
 	q.Filters = append(q.Filters, &Filter{
 		QueryName:         queryName,
-		ParameterizedName: getParameterizedName(dbField, q.queryDbFieldMap),
+		ParameterizedName: getParameterizedName(dbField, q.queryDbFieldMap, q.allowedSpecialFilters),
 		Method:            m,
 		Value:             value,
 		DbField:           dbField,
@@ -827,11 +828,11 @@ func (q *Query) parseFilter(key, value string) error {
 				return errors.Wrap(ErrEmptyValue, key)
 			}
 
-			filter, err := newFilter(key, v, q.delimiterIN, q.validations, q.queryDbFieldMap)
+			filter, err := newFilter(key, v, q.delimiterIN, q.validations, q.queryDbFieldMap, q.allowedSpecialFilters)
 
 			if err != nil {
 				if err == ErrValidationNotFound {
-					isAllowed := stringInSlice(filter.QueryName, q.allowedSpecialFilters)
+					_, isAllowed := q.allowedSpecialFilters[filter.QueryName]
 					if q.ignoreUnknown && !isAllowed {
 						continue
 					} else if !isAllowed {
@@ -853,10 +854,10 @@ func (q *Query) parseFilter(key, value string) error {
 			f = filter
 		}
 	} else { // Single filter
-		filter, err := newFilter(key, value, q.delimiterIN, q.validations, q.queryDbFieldMap)
+		filter, err := newFilter(key, value, q.delimiterIN, q.validations, q.queryDbFieldMap, q.allowedSpecialFilters)
 		if err != nil {
 			if err == ErrValidationNotFound {
-				isAllowed := stringInSlice(filter.QueryName, q.allowedSpecialFilters)
+				_, isAllowed := q.allowedSpecialFilters[filter.QueryName]
 				err = ErrFilterNotFound
 				if q.ignoreUnknown && !isAllowed {
 					return nil
@@ -877,14 +878,14 @@ func (q *Query) parseFilter(key, value string) error {
 
 // allow support for filters on nested custom/json properties,
 // e.g. pace.pacing_strategy
-func getParameterizedName(dbField DatabaseField, qdbm QueryDbMap) string {
+func getParameterizedName(dbField DatabaseField, qdbm QueryDbMap, allowedSpecialFilters map[string]FieldType) string {
 	elems := strings.Split(dbField.Name, ".")
 	cur := elems[0]
 	curFormatted := elems[0]
 	var jsonElems []string
 	if len(elems) > 1 {
 		for i, el := range elems[1:] {
-			t := detectType(cur, qdbm)
+			t := detectType(cur, qdbm, allowedSpecialFilters)
 			if t == FieldTypeJson {
 				if i == 0 {
 					jsonElems = append(jsonElems, fmt.Sprintf("%s.%s", dbField.Table, curFormatted))
@@ -906,7 +907,7 @@ func getParameterizedName(dbField DatabaseField, qdbm QueryDbMap) string {
 		}
 		jsonElems = append(jsonElems, curFormatted)
 		if len(jsonElems) > 1 {
-			t := detectType(dbField.Name, qdbm)
+			t := detectType(dbField.Name, qdbm, allowedSpecialFilters)
 			return getParameterizedNameJsonHelper(t, jsonElems...)
 		}
 		return curFormatted
@@ -1000,7 +1001,7 @@ func (q *Query) parseSort(value []string, validate ValidationFunc) error {
 		}
 		sort = append(sort, Sort{
 			QuerySortBy:     by,
-			ByParameterized: getParameterizedName(dbField, q.queryDbFieldMap),
+			ByParameterized: getParameterizedName(dbField, q.queryDbFieldMap, q.allowedSpecialFilters),
 			Desc:            desc,
 		})
 	}

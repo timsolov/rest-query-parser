@@ -51,14 +51,18 @@ func detectValidation(name string, validations Validations) (ValidationFunc, boo
 }
 
 // detectType
-func detectType(queryName string, qdbm QueryDbMap) FieldType {
+func detectType(queryName string, qdbm QueryDbMap, allowedSpecialFilters map[string]FieldType) FieldType {
 	dbf, err := detectDbField(queryName, qdbm)
 	if err == nil {
 		return dbf.Type
 	}
-	// for special filters, assume json
-	// also safe bc json allowed methods are a subset of other types'
-	return FieldTypeJson //, errors.New("could not find type")
+	if val, ok := allowedSpecialFilters[queryName]; ok {
+		return val
+	}
+	// assume string
+	// safe bc string allowed methods are a subset of other types'
+	// and parse string will always work
+	return FieldTypeString //, errors.New("could not find type")
 }
 
 // detectDbField
@@ -79,7 +83,7 @@ func isNotNull(f *Filter) bool {
 
 // rawKey - url key
 // value - must be one value (if need IN method then values must be separated by comma (,))
-func newFilter(rawKey string, value string, delimiter string, validations Validations, qdbm QueryDbMap) (*Filter, error) {
+func newFilter(rawKey string, value string, delimiter string, validations Validations, qdbm QueryDbMap, allowedSpecialFilters map[string]FieldType) (*Filter, error) {
 	f := &Filter{
 		Key: rawKey,
 	}
@@ -96,7 +100,7 @@ func newFilter(rawKey string, value string, delimiter string, validations Valida
 	// }
 
 	// detect type by key names in validations
-	valueType := detectType(f.QueryName, qdbm)
+	valueType := detectType(f.QueryName, qdbm, allowedSpecialFilters)
 
 	if err := f.parseValue(valueType, value, delimiter); err != nil {
 		return nil, err
@@ -112,7 +116,7 @@ func newFilter(rawKey string, value string, delimiter string, validations Valida
 	if err != nil {
 		return f, ErrValidationNotFound
 	}
-	f.ParameterizedName = getParameterizedName(dbField, qdbm)
+	f.ParameterizedName = getParameterizedName(dbField, qdbm, allowedSpecialFilters)
 	f.DbField = dbField
 
 	return f, nil
@@ -146,7 +150,8 @@ func (f *Filter) validate(validate ValidationFunc) error {
 }
 
 // parseKey parses key to set f.Name and f.Method
-//   id[eq] -> f.Name = "id", f.Method = EQ
+//
+//	id[eq] -> f.Name = "id", f.Method = EQ
 func (f *Filter) parseKey(key string) error {
 
 	// default Method is EQ
@@ -202,7 +207,7 @@ func (f *Filter) parseValue(valueType FieldType, value string, delimiter string)
 		if err != nil {
 			return err
 		}
-	case FieldTypeCustom, FieldTypeJson:
+	case FieldTypeCustom, FieldTypeJson, FieldTypeArray:
 		err := f.setCustom(list)
 		if err != nil {
 			return err
