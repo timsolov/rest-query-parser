@@ -232,6 +232,12 @@ func (q *Query) AddQueryField(queryName string) *Query {
 	return q
 }
 
+// AddFields adds fields to SELECT statement
+func (q *Query) AddQueryFields(queryNames ...string) *Query {
+	q.QueryFields = append(q.QueryFields, queryNames...)
+	return q
+}
+
 // OFFSET returns word OFFSET with number
 //
 // Return example: ` OFFSET 0`
