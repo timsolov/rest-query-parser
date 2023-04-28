@@ -35,7 +35,7 @@ See cmd/main.go and tests for more examples.
     )
     
     func main() {
-        url, _ := url.Parse("http://localhost/?sort=+name,-id&limit=10&id=1&i[eq]=5&s[eq]=one&email[like]=*tim*|name[like]=*tim*")
+        url, _ := url.Parse("http://localhost/?sort=name,-id&limit=10&id=1&i[eq]=5&s[eq]=one&email[like]=*tim*|name[like]=*tim*")
         q, _ := rqp.NewParse(url.Query(), rqp.Validations{
             "limit:required": rqp.MinMax(10, 100),  // limit must present in the Query part and must be between 10 and 100 (default: Min(1))
             "sort":           rqp.In("id", "name"), // sort could be or not in the query but if it is present it must be equal to "in" or "name"
@@ -60,7 +60,7 @@ See cmd/main.go and tests for more examples.
         q.Parse()
 
         fmt.Println(q.SQL("table")) // SELECT id, name FROM table ORDER BY id LIMIT 10
-        fmt.Println(q.FieldsSQL())  // id, name
+        fmt.Println(q.Select())     // id, name
         fmt.Println(q.Args())       // []
     }
 ```
