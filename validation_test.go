@@ -55,6 +55,39 @@ func TestMinMax(t *testing.T) {
 
 }
 
+func TestMinMaxFloat(t *testing.T) {
+	err := MaxFloat(100)(101)
+	assert.Equal(t, errors.Cause(err), ErrNotInScope)
+	assert.EqualError(t, err, "101: not in scope")
+
+	err = MaxFloat(100)(100)
+	assert.NoError(t, err)
+
+	err = MinFloat(100)(100)
+	assert.NoError(t, err)
+
+	err = MinMaxFloat(10, 100)(9)
+	assert.Equal(t, errors.Cause(err), ErrNotInScope)
+	assert.EqualError(t, err, "9: not in scope")
+
+	err = MinMaxFloat(10, 100)(101)
+	assert.Equal(t, errors.Cause(err), ErrNotInScope)
+	assert.EqualError(t, err, "101: not in scope")
+
+	err = MinMaxFloat(10, 100)(50)
+	assert.NoError(t, err)
+
+	err = Multi(MinFloat(10), MaxFloat(100))(50)
+	assert.NoError(t, err)
+
+	err = Multi(MinFloat(10), MaxFloat(100))(101)
+	assert.Equal(t, errors.Cause(err), ErrNotInScope)
+
+	err = MinMaxFloat(10, 100)("one")
+	assert.Equal(t, errors.Cause(err), ErrNotInScope)
+	assert.EqualError(t, err, "one: not in scope")
+}
+
 func TestNotEmpty(t *testing.T) {
 	// good case
 	err := NotEmpty()("test")

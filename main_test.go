@@ -243,6 +243,9 @@ func TestWhere(t *testing.T) {
 		{url: "?id[eq]=1&id[eq]=4", expected: " WHERE id = ? AND id = ?"},
 		{url: "?id[gte]=1&id[lte]=4", expected: " WHERE id >= ? AND id <= ?", expected2: " WHERE id <= ? AND id >= ?"},
 		{url: "?id[gte]=1|id[lte]=4", expected: " WHERE (id >= ? OR id <= ?)", expected2: " WHERE (id <= ? OR id >= ?)"},
+		// float
+		{url: "?f[gte]=1.5&f[lte]=4.7", expected: " WHERE f >= ? AND f <= ?", expected2: " WHERE f <= ? AND f >= ?"},
+		{url: "?f[gte]=1.5|f[lte]=4.7", expected: " WHERE (f >= ? OR f <= ?)", expected2: " WHERE (f <= ? OR f >= ?)"},
 		// null:
 		{url: "?u[not]=NULL", expected: " WHERE u IS NOT NULL"},
 		{url: "?u[is]=NULL", expected: " WHERE u IS NULL"},
@@ -261,6 +264,12 @@ func TestWhere(t *testing.T) {
 				"id:int": func(value interface{}) error {
 					if value.(int) > 10 {
 						return errors.New("can't be greater then 10")
+					}
+					return nil
+				},
+				"f:float": func(value interface{}) error {
+					if value.(float32) > 8.5 {
+						return errors.New("can't be greater then 8.5")
 					}
 					return nil
 				},
@@ -305,6 +314,12 @@ func TestWhere2(t *testing.T) {
 			}
 			return nil
 		},
+		"f:float": func(value interface{}) error {
+			if value.(float32) > 8.5 {
+				return errors.New("can't be greater then 8.5")
+			}
+			return nil
+		},
 		"s": In(
 			"super",
 			"best",
@@ -314,7 +329,7 @@ func TestWhere2(t *testing.T) {
 			return nil
 		},
 	})
-	assert.NoError(t, q.SetUrlString("?id[eq]=10&s[like]=super|u[like]=*best*&id[gt]=1"))
+	assert.NoError(t, q.SetUrlString("?id[eq]=10&f[gt]=4&s[like]=super|u[like]=*best*&id[gt]=1"))
 	assert.NoError(t, q.Parse())
 	//t.Log(q.SQL("tab"), q.Args())
 	assert.NoError(t, q.SetUrlString("?id[eq]=10&s[like]=super|u[like]=&id[gt]=1"))
