@@ -95,6 +95,14 @@ var (
 		IN:     "IN",
 		NIN:    "NOT IN",
 	}
+	reverseTranslateMethods map[string]Method = map[string]Method{
+		"=":  EQ,
+		"!=": NE,
+		">":  GT,
+		"<":  LT,
+		">=": GTE,
+		"<=": LTE,
+	}
 )
 
 // Sort is ordering struct
