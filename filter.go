@@ -167,17 +167,10 @@ func (f *Filter) parseKey(key string) error {
 			epos = spos + epos - 1
 
 			if epos-spos > 0 {
-				keyStr := strings.ToUpper(string(key[spos:epos]))
-				if _, ok := translateMethods[Method(keyStr)]; ok {
-					f.Method = Method(keyStr)
-					return nil
+				f.Method = Method(strings.ToUpper(string(key[spos:epos])))
+				if _, ok := translateMethods[f.Method]; !ok {
+					return ErrUnknownMethod
 				}
-				// allow either the Method or SQL string for certain methods, e.g. gt or >=
-				if meth, ok := reverseTranslateMethods[keyStr]; ok {
-					f.Method = meth
-					return nil
-				}
-				return ErrUnknownMethod
 			}
 		}
 	} else {
