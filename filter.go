@@ -185,6 +185,18 @@ func (f *Filter) parseValue(valueType FieldType, value string, delimiter string)
 
 	var list []string
 
+	if strings.Compare(strings.ToUpper(value), NULL) == 0 {
+		if f.Method == EQ {
+			f.Method = IS
+			f.Value = NULL
+			return nil
+		} else if f.Method == NE {
+			f.Method = NOT
+			f.Value = NULL
+			return nil
+		}
+	}
+
 	if strings.Contains(value, delimiter) {
 		list = strings.Split(value, delimiter)
 	} else {
