@@ -12,14 +12,17 @@ import (
 type FieldType string
 
 const (
-	FieldTypeJson   = "json"
-	FieldTypeInt    = "int"
-	FieldTypeBool   = "bool"
-	FieldTypeCustom = "custom"
-	FieldTypeFloat  = "float"
-	FieldTypeString = "string"
-	FieldTypeTime   = "time"
-	FieldTypeArray  = "array"
+	FieldTypeJson        = "json"
+	FieldTypeInt         = "int"
+	FieldTypeBool        = "bool"
+	FieldTypeCustom      = "custom"
+	FieldTypeFloat       = "float"
+	FieldTypeString      = "string"
+	FieldTypeTime        = "time"
+	FieldTypeObjectArray = "objectarray"
+	FieldTypeIntArray    = "intarray"
+	FieldTypeStringArray = "stringarray"
+	FieldTypeFloatArray  = "floatarray"
 )
 
 type DatabaseField struct {

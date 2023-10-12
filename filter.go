@@ -185,18 +185,6 @@ func (f *Filter) parseValue(valueType FieldType, value string, delimiter string)
 
 	var list []string
 
-	if strings.Compare(strings.ToUpper(value), NULL) == 0 {
-		if f.Method == EQ {
-			f.Method = IS
-			f.Value = NULL
-			return nil
-		} else if f.Method == NE {
-			f.Method = NOT
-			f.Value = NULL
-			return nil
-		}
-	}
-
 	if strings.Contains(value, delimiter) {
 		list = strings.Split(value, delimiter)
 	} else {
@@ -205,38 +193,90 @@ func (f *Filter) parseValue(valueType FieldType, value string, delimiter string)
 
 	switch valueType {
 	case FieldTypeInt:
-		err := f.setInt(list)
-		if err != nil {
+		if err := f.setInt(list); err != nil {
 			return err
 		}
 	case FieldTypeBool:
-		err := f.setBool(list)
-		if err != nil {
+		if err := f.setBool(list); err != nil {
 			return err
 		}
 	case FieldTypeFloat:
-		err := f.setFloat(list)
-		if err != nil {
+		if err := f.setFloat(list); err != nil {
 			return err
 		}
-	case FieldTypeCustom, FieldTypeJson, FieldTypeArray:
-		err := f.setCustom(list)
-		if err != nil {
+	case FieldTypeObjectArray:
+		if err := f.setObjectArray(list); err != nil {
+			return err
+		}
+	case FieldTypeIntArray:
+		if err := f.setIntArray(list); err != nil {
+			return err
+		}
+	case FieldTypeStringArray:
+		if err := f.setStringArray(list); err != nil {
+			return err
+		}
+	case FieldTypeFloatArray:
+		if err := f.setFloatArray(list); err != nil {
+			return err
+		}
+	case FieldTypeCustom, FieldTypeJson:
+		if err := f.setCustom(list); err != nil {
 			return err
 		}
 	case FieldTypeTime:
-		err := f.setTime(list)
-		if err != nil {
+		if err := f.setTime(list); err != nil {
 			return err
 		}
 	default: // str, string and all other unknown types will handle as string
-		err := f.setString(list)
-		if err != nil {
+		if err := f.setString(list); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (f *Filter) buildStringArrayStr() string {
+	vs := f.Value.([]string)
+	sb := &strings.Builder{}
+	sb.WriteString("'{")
+	for i, v := range vs {
+		if i > 0 {
+			sb.WriteRune(',')
+		}
+		sb.WriteString(v)
+	}
+	sb.WriteString("}'")
+	return sb.String()
+}
+
+func (f *Filter) buildIntArrayStr() string {
+	vs := f.Value.([]int)
+	sb := &strings.Builder{}
+	sb.WriteString("'{")
+	for i, v := range vs {
+		if i > 0 {
+			sb.WriteRune(',')
+		}
+		sb.WriteString(strconv.Itoa(v))
+	}
+	sb.WriteString("}'")
+	return sb.String()
+}
+
+func (f *Filter) buildFloatArrayStr() string {
+	vs := f.Value.([]float64)
+	sb := &strings.Builder{}
+	sb.WriteString("'{")
+	for i, v := range vs {
+		if i > 0 {
+			sb.WriteRune(',')
+		}
+		sb.WriteString(strconv.FormatFloat(v, 'f', -1, 64))
+	}
+	sb.WriteString("}'")
+	return sb.String()
 }
 
 // Where returns condition expression
@@ -245,19 +285,20 @@ func (f *Filter) Where() (string, error) {
 
 	switch f.Method {
 	case EQ, NE:
-		switch reflect.ValueOf(f.Value).Kind() {
-		case reflect.Slice:
-			method := IN
-			if f.Method == NE {
-				method = NIN
-			}
-			exp = fmt.Sprintf("%s %s (?)", f.ParameterizedName, translateMethods[method])
-			exp, _, _ = in(exp, f.Value)
-			return exp, nil
+		switch f.DbField.Type {
+		case FieldTypeStringArray:
+			arrayStr := f.buildStringArrayStr()
+			exp = fmt.Sprintf("%s @> %s AND %s <@ %s", f.ParameterizedName, arrayStr, f.ParameterizedName, arrayStr)
+		case FieldTypeIntArray:
+			arrayStr := f.buildIntArrayStr()
+			exp = fmt.Sprintf("%s @> %s AND %s <@ %s", f.ParameterizedName, arrayStr, f.ParameterizedName, arrayStr)
+		case FieldTypeFloatArray:
+			arrayStr := f.buildFloatArrayStr()
+			exp = fmt.Sprintf("%s @> %s AND %s <@ %s", f.ParameterizedName, arrayStr, f.ParameterizedName, arrayStr)
 		default:
 			exp = fmt.Sprintf("%s %s ?", f.ParameterizedName, translateMethods[f.Method])
-			return exp, nil
 		}
+		return exp, nil
 	case GT, LT, GTE, LTE, LIKE, ILIKE, NLIKE, NILIKE:
 		exp = fmt.Sprintf("%s %s ?", f.ParameterizedName, translateMethods[f.Method])
 		return exp, nil
@@ -287,8 +328,7 @@ func (f *Filter) Args() ([]interface{}, error) {
 	case EQ, NE:
 		switch reflect.ValueOf(f.Value).Kind() {
 		case reflect.Slice:
-			_, params, _ := in("?", f.Value)
-			args = append(args, params...)
+			// arrays are handled uniquely in Where(), without args
 			return args, nil
 		default:
 			args = append(args, f.Value)
@@ -445,7 +485,90 @@ func (f *Filter) setString(list []string) error {
 		switch f.Method {
 		case IN, NIN, EQ, NE:
 			f.Value = list
+		default:
+			return ErrMethodNotAllowed
+		}
+	}
+	return nil
+}
+
+func (f *Filter) setIntArray(list []string) error {
+	switch f.Method {
+	case EQ, NE:
+		intSlice := make([]int, len(list))
+		for i, s := range list {
+			v, err := strconv.Atoi(s)
+			if err != nil {
+				return ErrBadFormat
+			}
+			intSlice[i] = v
+		}
+		f.Value = intSlice
+		return nil
+	case IS, NOT:
+		if len(list) == 1 && strings.Compare(strings.ToUpper(list[0]), NULL) == 0 {
+			f.Value = NULL
 			return nil
+		} else {
+			return ErrBadFormat
+		}
+	default:
+		return ErrMethodNotAllowed
+	}
+}
+
+func (f *Filter) setStringArray(list []string) error {
+	switch f.Method {
+	case EQ, NE:
+		f.Value = list
+		return nil
+	case IS, NOT:
+		if len(list) == 1 && strings.Compare(strings.ToUpper(list[0]), NULL) == 0 {
+			f.Value = NULL
+			return nil
+		} else {
+			return ErrBadFormat
+		}
+	default:
+		return ErrMethodNotAllowed
+	}
+}
+
+func (f *Filter) setFloatArray(list []string) error {
+	switch f.Method {
+	case EQ, NE:
+		floatSlice := make([]float64, len(list))
+		for i, s := range list {
+			v, err := strconv.ParseFloat(s, 64)
+			if err != nil {
+				return ErrBadFormat
+			}
+			floatSlice[i] = v
+		}
+		f.Value = floatSlice
+		return nil
+	case IS, NOT:
+		if len(list) == 1 && strings.Compare(strings.ToUpper(list[0]), NULL) == 0 {
+			f.Value = NULL
+			return nil
+		} else {
+			return ErrBadFormat
+		}
+	default:
+		return ErrMethodNotAllowed
+	}
+}
+
+func (f *Filter) setObjectArray(list []string) error {
+	if len(list) == 1 {
+		switch f.Method {
+		case IS, NOT:
+			if strings.Compare(strings.ToUpper(list[0]), NULL) == 0 {
+				f.Value = NULL
+				return nil
+			} else {
+				return ErrBadFormat
+			}
 		}
 	}
 	return ErrMethodNotAllowed
