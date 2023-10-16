@@ -19,6 +19,7 @@ const (
 	FieldTypeFloat       = "float"
 	FieldTypeString      = "string"
 	FieldTypeTime        = "time"
+	FieldTypeArray       = "array" // DEPRECATED
 	FieldTypeObjectArray = "objectarray"
 	FieldTypeIntArray    = "intarray"
 	FieldTypeStringArray = "stringarray"
@@ -726,8 +727,12 @@ func (q *Query) Parse() (err error) {
 		low := strings.ToLower(key)
 
 		switch low {
-		case "fields", "fields[in]":
+		case "fields[in]": // DEPRECATED
 			low = strings.ReplaceAll(low, "[in]", "")
+			err = q.parseFields(values)
+			delete(requiredNames, low)
+		case "fields", "fields[eq]":
+			low = strings.ReplaceAll(low, "[eq]", "")
 			err = q.parseFields(values)
 			delete(requiredNames, low)
 		case "page", "page[eq]":
@@ -738,8 +743,12 @@ func (q *Query) Parse() (err error) {
 			low = strings.ReplaceAll(low, "[eq]", "")
 			err = q.parsePageSize(values, q.validations[low])
 			delete(requiredNames, low)
-		case "sort", "sort[in]":
+		case "sort[in]": // DEPRECATED
 			low = strings.ReplaceAll(low, "[in]", "")
+			err = q.parseSort(values, q.validations[low])
+			delete(requiredNames, low)
+		case "sort", "sort[eq]":
+			low = strings.ReplaceAll(low, "[eq]", "")
 			err = q.parseSort(values, q.validations[low])
 			delete(requiredNames, low)
 		default:
