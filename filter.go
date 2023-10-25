@@ -204,7 +204,7 @@ func (f *Filter) parseValue(valueType FieldType, value string, delimiter string)
 		if err := f.setFloat(list); err != nil {
 			return err
 		}
-	case FieldTypeObjectArray, FieldTypeArray:
+	case FieldTypeObjectArray:
 		if err := f.setObjectArray(list); err != nil {
 			return err
 		}
