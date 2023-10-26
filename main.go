@@ -13,6 +13,7 @@ type FieldType string
 
 const (
 	FieldTypeJson        = "json"
+	FieldTypeObject      = "object"
 	FieldTypeInt         = "int"
 	FieldTypeBool        = "bool"
 	FieldTypeCustom      = "custom"
@@ -33,6 +34,12 @@ type DatabaseField struct {
 	Alias    string
 }
 
+func (df DatabaseField) IsSortable() bool {
+	return df.Type == FieldTypeInt || df.Type == FieldTypeFloat ||
+		df.Type == FieldTypeTime || df.Type == FieldTypeString ||
+		df.Type == FieldTypeBool
+}
+
 type QueryDbMap map[string]DatabaseField
 
 // Query the main struct of package
@@ -48,10 +55,10 @@ type Query struct {
 	Sorts       []Sort
 	Filters     []*Filter
 
-	delimiterIN           string
-	delimiterOR           string
-	ignoreUnknown         bool
-	allowedSpecialFilters map[string]FieldType
+	delimiterIN        string
+	delimiterOR        string
+	ignoreUnknown      bool
+	allowedNonDbFields map[string]FieldType
 
 	Error error
 }
@@ -114,8 +121,8 @@ func (q *Query) IgnoreUnknownFilters(i bool) *Query {
 }
 
 // set behavior for Parser to not raise ErrFilterNotAllowed for these undefined filters or not
-func (q *Query) AllowSpecialFilters(filters map[string]FieldType) *Query {
-	q.allowedSpecialFilters = filters
+func (q *Query) AllowNonDbFields(filters map[string]FieldType) *Query {
+	q.allowedNonDbFields = filters
 	return q
 }
 
@@ -335,13 +342,13 @@ func (q *Query) HaveQuerySortBy(querySortBy string) bool {
 
 // AddQuerySortBy adds an ordering rule to Query
 func (q *Query) AddQuerySortBy(querySortBy string, desc bool) *Query {
-	dbField, err := detectDbField(querySortBy, q.queryDbFieldMap)
+	dbField, err := q.detectDbField(querySortBy)
 	if err != nil {
 		panic("could not find db field for sort")
 	}
 	q.Sorts = append(q.Sorts, Sort{
 		QuerySortBy:     querySortBy,
-		ByParameterized: getParameterizedName(dbField, q.queryDbFieldMap, q.allowedSpecialFilters),
+		ByParameterized: q.getParameterizedName(dbField),
 		Desc:            desc,
 	})
 	return q
@@ -374,13 +381,13 @@ func (q *Query) HaveQueryFilter(queryName string) bool {
 
 // AddFilter adds a filter to Query
 func (q *Query) AddQueryFilter(queryName string, m Method, value interface{}) *Query {
-	dbField, err := detectDbField(queryName, q.queryDbFieldMap)
+	dbField, err := q.detectDbField(queryName)
 	if err != nil {
 		panic("could not find db field for filter")
 	}
 	q.Filters = append(q.Filters, &Filter{
 		QueryName:         queryName,
-		ParameterizedName: getParameterizedName(dbField, q.queryDbFieldMap, q.allowedSpecialFilters),
+		ParameterizedName: q.getParameterizedName(dbField),
 		Method:            m,
 		Value:             value,
 		DbField:           dbField,
@@ -728,7 +735,7 @@ func (q *Query) Parse() (err error) {
 		switch low {
 		case "fields", "fields[eq]":
 			low = strings.ReplaceAll(low, "[eq]", "")
-			err = q.parseFields(values)
+			err = q.parseFields(values, q.validations[low])
 			delete(requiredNames, low)
 		case "page", "page[eq]":
 			low = strings.ReplaceAll(low, "[eq]", "")
@@ -837,11 +844,11 @@ func (q *Query) parseFilter(key, value string) error {
 				return errors.Wrap(ErrEmptyValue, key)
 			}
 
-			filter, err := newFilter(key, v, q.delimiterIN, q.validations, q.queryDbFieldMap, q.allowedSpecialFilters)
+			filter, err := q.newFilter(key, v, q.delimiterIN, q.validations, q.queryDbFieldMap, q.allowedNonDbFields)
 
 			if err != nil {
 				if err == ErrValidationNotFound {
-					_, isAllowed := q.allowedSpecialFilters[filter.QueryName]
+					_, isAllowed := q.allowedNonDbFields[filter.QueryName]
 					if q.ignoreUnknown && !isAllowed {
 						continue
 					} else if !isAllowed {
@@ -863,10 +870,10 @@ func (q *Query) parseFilter(key, value string) error {
 			f = filter
 		}
 	} else { // Single filter
-		filter, err := newFilter(key, value, q.delimiterIN, q.validations, q.queryDbFieldMap, q.allowedSpecialFilters)
+		filter, err := q.newFilter(key, value, q.delimiterIN, q.validations, q.queryDbFieldMap, q.allowedNonDbFields)
 		if err != nil {
 			if err == ErrValidationNotFound {
-				_, isAllowed := q.allowedSpecialFilters[filter.QueryName]
+				_, isAllowed := q.allowedNonDbFields[filter.QueryName]
 				err = ErrFilterNotFound
 				if q.ignoreUnknown && !isAllowed {
 					return nil
@@ -887,14 +894,14 @@ func (q *Query) parseFilter(key, value string) error {
 
 // allow support for filters on nested custom/json properties,
 // e.g. pace.pacing_strategy
-func getParameterizedName(dbField DatabaseField, qdbm QueryDbMap, allowedSpecialFilters map[string]FieldType) string {
+func (q *Query) getParameterizedName(dbField DatabaseField) string {
 	elems := strings.Split(dbField.Name, ".")
 	cur := elems[0]
 	curFormatted := elems[0]
 	var jsonElems []string
 	if len(elems) > 1 {
 		for i, el := range elems[1:] {
-			t := detectType(cur, qdbm, allowedSpecialFilters)
+			t := q.detectType(cur)
 			if t == FieldTypeJson {
 				if i == 0 {
 					jsonElems = append(jsonElems, fmt.Sprintf("%s.%s", dbField.Table, curFormatted))
@@ -916,7 +923,7 @@ func getParameterizedName(dbField DatabaseField, qdbm QueryDbMap, allowedSpecial
 		}
 		jsonElems = append(jsonElems, curFormatted)
 		if len(jsonElems) > 1 {
-			t := detectType(dbField.Name, qdbm, allowedSpecialFilters)
+			t := q.detectType(dbField.Name)
 			return getParameterizedNameJsonHelper(t, jsonElems...)
 		}
 		return curFormatted
@@ -966,10 +973,6 @@ func (q *Query) parseSort(value []string, validate ValidationFunc) error {
 		return ErrBadFormat
 	}
 
-	if validate == nil {
-		return ErrValidationNotFound
-	}
-
 	list := value
 	if strings.Contains(value[0], q.delimiterIN) {
 		list = strings.Split(value[0], q.delimiterIN)
@@ -1004,13 +1007,16 @@ func (q *Query) parseSort(value []string, validate ValidationFunc) error {
 			}
 		}
 
-		dbField, err := detectDbField(by, q.queryDbFieldMap)
+		dbField, err := q.detectDbField(by)
 		if err != nil {
-			panic("could not find db field for filter")
+			return errors.New("could not find db field for filter")
+		}
+		if !dbField.IsSortable() {
+			return errors.New("db field is not sortable")
 		}
 		sort = append(sort, Sort{
 			QuerySortBy:     by,
-			ByParameterized: getParameterizedName(dbField, q.queryDbFieldMap, q.allowedSpecialFilters),
+			ByParameterized: q.getParameterizedName(dbField),
 			Desc:            desc,
 		})
 	}
@@ -1020,14 +1026,9 @@ func (q *Query) parseSort(value []string, validate ValidationFunc) error {
 	return nil
 }
 
-func (q *Query) parseFields(value []string) error {
+func (q *Query) parseFields(value []string, validate ValidationFunc) error {
 	if len(value) != 1 {
 		return ErrBadFormat
-	}
-
-	validate := q.validations["fields"]
-	if validate == nil {
-		return ErrValidationNotFound
 	}
 
 	list := value
@@ -1043,6 +1044,16 @@ func (q *Query) parseFields(value []string) error {
 				return err
 			}
 		}
+
+		dbField, err := q.detectDbField(v)
+		if err == nil && strings.Contains(dbField.Name, ".") {
+			return errors.New("cannot select non-root fields")
+		} else if err != nil {
+			if _, ok := q.allowedNonDbFields[v]; !ok {
+				return errors.New("could not find db field for filter")
+			}
+		}
+
 		q.QueryFields = append(q.QueryFields, v)
 	}
 

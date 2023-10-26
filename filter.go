@@ -51,14 +51,15 @@ func detectValidation(name string, validations Validations) (ValidationFunc, boo
 }
 
 // detectType
-func detectType(queryName string, qdbm QueryDbMap, allowedSpecialFilters map[string]FieldType) FieldType {
-	dbf, err := detectDbField(queryName, qdbm)
+func (q *Query) detectType(queryName string) FieldType {
+	dbf, err := q.detectDbField(queryName)
 	if err == nil {
 		return dbf.Type
 	}
-	if val, ok := allowedSpecialFilters[queryName]; ok {
+	if val, ok := q.allowedNonDbFields[queryName]; ok {
 		return val
 	}
+
 	// assume string
 	// safe bc string allowed methods are a subset of other types'
 	// and parse string will always work
@@ -66,8 +67,8 @@ func detectType(queryName string, qdbm QueryDbMap, allowedSpecialFilters map[str
 }
 
 // detectDbField
-func detectDbField(queryName string, qdbm QueryDbMap) (DatabaseField, error) {
-	if dbf, ok := qdbm[queryName]; ok {
+func (q *Query) detectDbField(queryName string) (DatabaseField, error) {
+	if dbf, ok := q.queryDbFieldMap[queryName]; ok {
 		return dbf, nil
 	}
 	return DatabaseField{}, errors.New("could not find table")
@@ -83,7 +84,7 @@ func isNotNull(f *Filter) bool {
 
 // rawKey - url key
 // value - must be one value (if need IN method then values must be separated by comma (,))
-func newFilter(rawKey string, value string, delimiter string, validations Validations, qdbm QueryDbMap, allowedSpecialFilters map[string]FieldType) (*Filter, error) {
+func (q *Query) newFilter(rawKey string, value string, delimiter string, validations Validations, qdbm QueryDbMap, allowedNonDbFields map[string]FieldType) (*Filter, error) {
 	f := &Filter{
 		Key: rawKey,
 	}
@@ -100,7 +101,7 @@ func newFilter(rawKey string, value string, delimiter string, validations Valida
 	// }
 
 	// detect type by key names in validations
-	valueType := detectType(f.QueryName, qdbm, allowedSpecialFilters)
+	valueType := q.detectType(f.QueryName)
 
 	if err := f.parseValue(valueType, value, delimiter); err != nil {
 		return nil, err
@@ -112,11 +113,11 @@ func newFilter(rawKey string, value string, delimiter string, validations Valida
 		}
 	}
 
-	dbField, err := detectDbField(f.QueryName, qdbm)
+	dbField, err := q.detectDbField(f.QueryName)
 	if err != nil {
 		return f, ErrValidationNotFound
 	}
-	f.ParameterizedName = getParameterizedName(dbField, qdbm, allowedSpecialFilters)
+	f.ParameterizedName = q.getParameterizedName(dbField)
 	f.DbField = dbField
 
 	return f, nil
@@ -220,8 +221,8 @@ func (f *Filter) parseValue(valueType FieldType, value string, delimiter string)
 		if err := f.setFloatArray(list); err != nil {
 			return err
 		}
-	case FieldTypeCustom, FieldTypeJson:
-		if err := f.setCustom(list); err != nil {
+	case FieldTypeCustom, FieldTypeJson, FieldTypeObject:
+		if err := f.setNullCheckable(list); err != nil {
 			return err
 		}
 	case FieldTypeTime:
@@ -574,7 +575,7 @@ func (f *Filter) setObjectArray(list []string) error {
 	return ErrMethodNotAllowed
 }
 
-func (f *Filter) setCustom(list []string) error {
+func (f *Filter) setNullCheckable(list []string) error {
 	if len(list) == 1 {
 		switch f.Method {
 		case IS, NOT:

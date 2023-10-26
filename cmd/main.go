@@ -37,7 +37,7 @@ func main() {
 			"targeting.ip":  {Table: "targeting", Name: "ip_targeting", Type: rqp.FieldTypeCustom},
 		})
 	q.IgnoreUnknownFilters(false)
-	q.AllowSpecialFilters("flights")
+	q.AllowNonDbFields("flights")
 	err := q.Parse()
 	if err != nil {
 		panic(err)
