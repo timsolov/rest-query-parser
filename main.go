@@ -383,7 +383,7 @@ func (q *Query) HaveQueryFilter(queryName string) bool {
 func (q *Query) AddQueryFilter(queryName string, m Method, value interface{}) *Query {
 	dbField, err := q.detectDbField(queryName)
 	if err != nil {
-		panic("could not find db field for filter")
+		panic("could not find db field for filter (" + queryName + ")")
 	}
 	q.Filters = append(q.Filters, &Filter{
 		QueryName:         queryName,
@@ -1009,10 +1009,10 @@ func (q *Query) parseSort(value []string, validate ValidationFunc) error {
 
 		dbField, err := q.detectDbField(by)
 		if err != nil {
-			return errors.New("could not find db field for filter")
+			return errors.New("could not find db field for filter (" + by + ")")
 		}
 		if !dbField.IsSortable() {
-			return errors.New("db field is not sortable")
+			return errors.New("db field is not sortable (" + by + ")")
 		}
 		sort = append(sort, Sort{
 			QuerySortBy:     by,
@@ -1047,10 +1047,10 @@ func (q *Query) parseFields(value []string, validate ValidationFunc) error {
 
 		dbField, err := q.detectDbField(v)
 		if err == nil && strings.Contains(dbField.Name, ".") {
-			return errors.New("cannot select non-root fields")
+			return errors.New("cannot select non-root fields (" + dbField.Name + ")")
 		} else if err != nil {
 			if _, ok := q.allowedNonDbFields[v]; !ok {
-				return errors.New("could not find db field for filter")
+				return errors.New("could not find db field for filter (" + v + ")")
 			}
 		}
 
