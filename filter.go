@@ -52,12 +52,12 @@ func detectValidation(name string, validations Validations) (ValidationFunc, boo
 
 // detectType
 func (q *Query) detectType(queryName string) FieldType {
-	dbf, err := q.detectDbField(queryName)
+	dbf, err := q.detectDatabaseField(queryName)
 	if err == nil {
 		return dbf.Type
 	}
-	if val, ok := q.allowedNonDbFields[queryName]; ok {
-		return val
+	if val, ok := q.allowedNonDatabseFields[queryName]; ok {
+		return val.Type
 	}
 
 	// assume string
@@ -66,8 +66,8 @@ func (q *Query) detectType(queryName string) FieldType {
 	return FieldTypeString //, errors.New("could not find type")
 }
 
-// detectDbField
-func (q *Query) detectDbField(queryName string) (DatabaseField, error) {
+// detectDatabaseField
+func (q *Query) detectDatabaseField(queryName string) (DatabaseField, error) {
 	if dbf, ok := q.queryDbFieldMap[queryName]; ok {
 		return dbf, nil
 	}
@@ -84,7 +84,7 @@ func isNotNull(f *Filter) bool {
 
 // rawKey - url key
 // value - must be one value (if need IN method then values must be separated by comma (,))
-func (q *Query) newFilter(rawKey string, value string, delimiter string, validations Validations, qdbm QueryDbMap, allowedNonDbFields map[string]FieldType) (*Filter, error) {
+func (q *Query) newFilter(rawKey string, value string, delimiter string, validations Validations, qdbm QueryDatabaseMap, allowedNonDatabseFields map[string]NonDatabaseField) (*Filter, error) {
 	f := &Filter{
 		Key: rawKey,
 	}
@@ -113,7 +113,7 @@ func (q *Query) newFilter(rawKey string, value string, delimiter string, validat
 		}
 	}
 
-	dbField, err := q.detectDbField(f.QueryName)
+	dbField, err := q.detectDatabaseField(f.QueryName)
 	if err != nil {
 		return f, ErrValidationNotFound
 	}

@@ -34,20 +34,25 @@ type DatabaseField struct {
 	Alias    string
 }
 
+type NonDatabaseField struct {
+	Type     FieldType
+	Sortable bool
+}
+
 func (df DatabaseField) IsSortable() bool {
 	return df.Type == FieldTypeInt || df.Type == FieldTypeFloat ||
 		df.Type == FieldTypeTime || df.Type == FieldTypeString ||
 		df.Type == FieldTypeBool
 }
 
-type QueryDbMap map[string]DatabaseField
+type QueryDatabaseMap map[string]DatabaseField
 
 // Query the main struct of package
 type Query struct {
 	query       map[string][]string
 	validations Validations
 
-	queryDbFieldMap QueryDbMap
+	queryDbFieldMap QueryDatabaseMap
 
 	QueryFields []string
 	Page        int
@@ -55,10 +60,10 @@ type Query struct {
 	Sorts       []Sort
 	Filters     []*Filter
 
-	delimiterIN        string
-	delimiterOR        string
-	ignoreUnknown      bool
-	allowedNonDbFields map[string]FieldType
+	delimiterIN             string
+	delimiterOR             string
+	ignoreUnknown           bool
+	allowedNonDatabseFields map[string]NonDatabaseField
 
 	Error error
 }
@@ -121,8 +126,8 @@ func (q *Query) IgnoreUnknownFilters(i bool) *Query {
 }
 
 // set behavior for Parser to not raise ErrFilterNotAllowed for these undefined filters or not
-func (q *Query) AllowNonDbFields(filters map[string]FieldType) *Query {
-	q.allowedNonDbFields = filters
+func (q *Query) AllowNonDatabaseFields(filters map[string]NonDatabaseField) *Query {
+	q.allowedNonDatabseFields = filters
 	return q
 }
 
@@ -342,9 +347,19 @@ func (q *Query) HaveQuerySortBy(querySortBy string) bool {
 
 // AddQuerySortBy adds an ordering rule to Query
 func (q *Query) AddQuerySortBy(querySortBy string, desc bool) *Query {
-	dbField, err := q.detectDbField(querySortBy)
+	dbField, err := q.detectDatabaseField(querySortBy)
 	if err != nil {
-		panic("could not find db field for sort")
+		if nonDbField, ok := q.allowedNonDatabseFields[querySortBy]; ok && nonDbField.Sortable {
+			q.Sorts = append(q.Sorts, Sort{
+				QuerySortBy:     querySortBy,
+				ByParameterized: querySortBy,
+				Desc:            desc,
+			})
+			return q
+		}
+		panic("could not find field for sort (" + querySortBy + ")")
+	} else if !dbField.IsSortable() {
+		panic("field is not sortable (" + querySortBy + ")")
 	}
 	q.Sorts = append(q.Sorts, Sort{
 		QuerySortBy:     querySortBy,
@@ -381,7 +396,7 @@ func (q *Query) HaveQueryFilter(queryName string) bool {
 
 // AddFilter adds a filter to Query
 func (q *Query) AddQueryFilter(queryName string, m Method, value interface{}) *Query {
-	dbField, err := q.detectDbField(queryName)
+	dbField, err := q.detectDatabaseField(queryName)
 	if err != nil {
 		panic("could not find db field for filter (" + queryName + ")")
 	}
@@ -423,18 +438,6 @@ func (q *Query) AddORFilters(fn func(query *Query)) *Query {
 	q.Filters = append(q.Filters, _q.Filters...)
 	return q
 }
-
-// // AddFilterRaw adds a filter to Query as SQL condition.
-// // This function supports only single condition per one call.
-// // If you'd like add more then one conditions you should call this func several times.
-// func (q *Query) AddFilterRaw(table, name, type, condition string) *Query {
-// 	q.Filters = append(q.Filters, &Filter{
-// 		ParameterizedName: condition,
-// 		Method:            raw,
-// 		DbField: DatabaseField{},
-// 	})
-// 	return q
-// }
 
 // RemoveFilter removes the filter by name
 func (q *Query) RemoveQueryFilter(name string) error {
@@ -526,43 +529,6 @@ func (q *Query) GetQueryFilter(queryName string) (*Filter, error) {
 	}
 	return nil, ErrFilterNotFound
 }
-
-// Replacer struct for ReplaceNames method
-// type Replacer map[string]string
-
-// ReplaceNames replace all specified name to new names
-// Sometimes we've to hijack properties, for example when we do JOINs,
-// so you can ask for filter/field "user_id" but replace it with "users.user_id".
-// Parameter is a map[string]string which means map[currentName]newName.
-// The library provide beautiful way by using special type rqp.Replacer.
-// Example:
-//   rqp.ReplaceNames(rqp.Replacer{
-//	   "user_id": "users.user_id",
-//   })
-// func (q *Query) ReplaceNames(r Replacer) {
-
-// 	for name, newname := range r {
-// 		pName := getParameterizedName(newname, q.queryDbFieldMap)
-// 		for i, v := range q.Filters {
-// 			if v.QueryName == name {
-// 				q.Filters[i].QueryName = newname
-// 				q.Filters[i].ParameterizedName = pName
-// 			}
-// 		}
-// 		for i, v := range q.QueryFields {
-// 			if v == name {
-// 				q.QueryFields[i] = newname
-// 			}
-// 		}
-// 		for i, v := range q.Sorts {
-// 			if v.QuerySortBy == name {
-// 				q.Sorts[i].QuerySortBy = newname
-// 				q.Sorts[i].ByParameterized = pName
-// 			}
-// 		}
-// 	}
-
-// }
 
 // Where returns list of filters for WHERE statement
 // return example: `id > 0 AND email LIKE 'some@email.com'`
@@ -692,23 +658,23 @@ func New() *Query {
 	return &Query{
 		delimiterIN:     ",",
 		delimiterOR:     "|",
-		queryDbFieldMap: QueryDbMap{},
+		queryDbFieldMap: QueryDatabaseMap{},
 	}
 }
 
 // NewQV creates new Query instance with parameters
-func NewQV(q url.Values, v Validations, qdbm QueryDbMap) *Query {
+func NewQV(q url.Values, v Validations, qdbm QueryDatabaseMap) *Query {
 	query := New().SetUrlQuery(q).SetValidations(v).SetQueryDbFieldsMap(qdbm)
 	return query
 }
 
 // NewParse creates new Query instance and Parse it
-func NewParse(q url.Values, v Validations, qdbm QueryDbMap) (*Query, error) {
+func NewParse(q url.Values, v Validations, qdbm QueryDatabaseMap) (*Query, error) {
 	query := New().SetUrlQuery(q).SetValidations(v).SetQueryDbFieldsMap(qdbm)
 	return query, query.Parse()
 }
 
-func (q *Query) SetQueryDbFieldsMap(m QueryDbMap) *Query {
+func (q *Query) SetQueryDbFieldsMap(m QueryDatabaseMap) *Query {
 	q.queryDbFieldMap = m
 	return q
 }
@@ -725,9 +691,6 @@ func (q *Query) Parse() (err error) {
 	// clean previously parsed filters
 	q.cleanFilters()
 
-	// construct a slice with required names of filters
-	requiredNames := q.requiredNames()
-
 	for key, values := range q.query {
 
 		low := strings.ToLower(key)
@@ -736,19 +699,15 @@ func (q *Query) Parse() (err error) {
 		case "fields", "fields[eq]":
 			low = strings.ReplaceAll(low, "[eq]", "")
 			err = q.parseFields(values, q.validations[low])
-			delete(requiredNames, low)
 		case "page", "page[eq]":
 			low = strings.ReplaceAll(low, "[eq]", "")
 			err = q.parsePage(values, q.validations[low])
-			delete(requiredNames, low)
 		case "page_size", "page_size[eq]":
 			low = strings.ReplaceAll(low, "[eq]", "")
 			err = q.parsePageSize(values, q.validations[low])
-			delete(requiredNames, low)
 		case "sort", "sort[eq]":
 			low = strings.ReplaceAll(low, "[eq]", "")
 			err = q.parseSort(values, q.validations[low])
-			delete(requiredNames, low)
 		default:
 			if len(values) == 0 {
 				return errors.Wrap(ErrBadFormat, key)
@@ -766,56 +725,7 @@ func (q *Query) Parse() (err error) {
 		}
 	}
 
-	// check required filters
-
-	for requiredName := range requiredNames {
-		if !q.HaveQueryFilter(requiredName) {
-			return errors.Wrap(ErrRequired, requiredName)
-		}
-	}
-
 	return nil
-}
-
-// requiredNames returns list of required filters
-func (q *Query) requiredNames() map[string]bool {
-	required := make(map[string]bool)
-
-	for name, f := range q.validations {
-		if strings.Contains(name, ":required") {
-			oldname := name
-			// oldname = arg1:required
-			// oldname = arg2:int:required
-			newname := strings.Replace(name, ":required", "", 1)
-			// newname = arg1
-			// newname = arg2:int
-
-			if strings.Contains(newname, ":") {
-				parts := strings.Split(newname, ":")
-				name = parts[0]
-			} else {
-				name = newname
-			}
-			// name = arg1
-			// name = arg2
-
-			low := strings.ToLower(name)
-			switch low {
-			case "fields", "fields[in]",
-				"page", "page[in]",
-				"page_size", "page_size[in]",
-				"sort", "sort[in]":
-				low = strings.ReplaceAll(low, "[in]", "")
-				required[low] = true
-			default:
-				required[name] = true
-			}
-
-			q.validations[newname] = f
-			delete(q.validations, oldname)
-		}
-	}
-	return required
 }
 
 // parseFilter parses one filter
@@ -844,11 +754,11 @@ func (q *Query) parseFilter(key, value string) error {
 				return errors.Wrap(ErrEmptyValue, key)
 			}
 
-			filter, err := q.newFilter(key, v, q.delimiterIN, q.validations, q.queryDbFieldMap, q.allowedNonDbFields)
+			filter, err := q.newFilter(key, v, q.delimiterIN, q.validations, q.queryDbFieldMap, q.allowedNonDatabseFields)
 
 			if err != nil {
 				if err == ErrValidationNotFound {
-					_, isAllowed := q.allowedNonDbFields[filter.QueryName]
+					_, isAllowed := q.allowedNonDatabseFields[filter.QueryName]
 					if q.ignoreUnknown && !isAllowed {
 						continue
 					} else if !isAllowed {
@@ -870,10 +780,10 @@ func (q *Query) parseFilter(key, value string) error {
 			f = filter
 		}
 	} else { // Single filter
-		filter, err := q.newFilter(key, value, q.delimiterIN, q.validations, q.queryDbFieldMap, q.allowedNonDbFields)
+		filter, err := q.newFilter(key, value, q.delimiterIN, q.validations, q.queryDbFieldMap, q.allowedNonDatabseFields)
 		if err != nil {
 			if err == ErrValidationNotFound {
-				_, isAllowed := q.allowedNonDbFields[filter.QueryName]
+				_, isAllowed := q.allowedNonDatabseFields[filter.QueryName]
 				err = ErrFilterNotFound
 				if q.ignoreUnknown && !isAllowed {
 					return nil
@@ -980,7 +890,7 @@ func (q *Query) parseSort(value []string, validate ValidationFunc) error {
 
 	list = cleanSliceString(list)
 
-	sort := make([]Sort, 0)
+	q.Sorts = make([]Sort, 0)
 
 	for _, v := range list {
 
@@ -1007,21 +917,8 @@ func (q *Query) parseSort(value []string, validate ValidationFunc) error {
 			}
 		}
 
-		dbField, err := q.detectDbField(by)
-		if err != nil {
-			return errors.New("could not find db field for filter (" + by + ")")
-		}
-		if !dbField.IsSortable() {
-			return errors.New("db field is not sortable (" + by + ")")
-		}
-		sort = append(sort, Sort{
-			QuerySortBy:     by,
-			ByParameterized: q.getParameterizedName(dbField),
-			Desc:            desc,
-		})
+		q.AddQuerySortBy(by, desc)
 	}
-
-	q.Sorts = sort
 
 	return nil
 }
@@ -1045,11 +942,11 @@ func (q *Query) parseFields(value []string, validate ValidationFunc) error {
 			}
 		}
 
-		dbField, err := q.detectDbField(v)
+		dbField, err := q.detectDatabaseField(v)
 		if err == nil && strings.Contains(dbField.Name, ".") {
 			return errors.New("cannot select non-root fields (" + dbField.Name + ")")
 		} else if err != nil {
-			if _, ok := q.allowedNonDbFields[v]; !ok {
+			if _, ok := q.allowedNonDatabseFields[v]; !ok {
 				return errors.New("could not find db field for filter (" + v + ")")
 			}
 		}

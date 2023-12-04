@@ -26,7 +26,7 @@ func main() {
 		rqp.Validations{
 			"fields": rqp.In("pace", "frequency_cap", "flights", "targeting"),
 		},
-		rqp.QueryDbMap{
+		rqp.QueryDatabaseMap{
 			"pace.pace":                 {Name: "global_bid_rate", Table: "campaign_pace", Type: rqp.FieldTypeFloat},
 			"pace.pacing_strategy":      {Name: "pacing_strategy", Table: "campaign", Type: rqp.FieldTypeString},
 			"frequency_cap":             {Name: "frequency_cap", Table: "campaign", Type: rqp.FieldTypeCustom},
@@ -37,35 +37,10 @@ func main() {
 			"targeting.ip":  {Table: "targeting", Name: "ip_targeting", Type: rqp.FieldTypeCustom},
 		})
 	q.IgnoreUnknownFilters(false)
-	q.AllowNonDbFields("flights")
 	err := q.Parse()
 	if err != nil {
 		panic(err)
 	}
 
-	//fmt.Println(q.SQL("campaign_pace"))                // SELECT * FROM table WHERE id = ? AND i = ? AND s = ? AND (email LIKE ? OR name LIKE ?) ORDER BY name, id DESC LIMIT 10
 	fmt.Println(q.SQL("campaign")) // SELECT * FROM table WHERE id = ? AND i = ? AND s = ? AND (email LIKE ? OR name LIKE ?) ORDER BY name, id DESC LIMIT 10
-	// fmt.Println(q.Select("campaign", "campaign_pace")) // SELECT * FROM table WHERE id = ? AND i = ? AND s = ? AND (email LIKE ? OR name LIKE ?) ORDER BY name, id DESC LIMIT 10
-	// fmt.Println(q.Where("campaign", "campaign_pace"))  // SELECT * FROM table WHERE id = ? AND i = ? AND s = ? AND (email LIKE ? OR name LIKE ?) ORDER BY name, id DESC LIMIT 10
-	// fmt.Println(q.HaveQueryFieldsOnTable("campaign"))  // SELECT * FROM table WHERE id = ? AND i = ? AND s = ? AND (email LIKE ? OR name LIKE ?) ORDER BY name, id DESC LIMIT 10
-	// fmt.Println(q.UsesTable("campaign_pace"))          // SELECT * FROM table WHERE id = ? AND i = ? AND s = ? AND (email LIKE ? OR name LIKE ?) ORDER BY name, id DESC LIMIT 10
-	//fmt.Println(q.Where()) // id = ? AND i = ? AND s = ? AND (email LIKE ? OR name LIKE ?)
-	// fmt.Println(q.Args()) // [1 5 one %tim% %tim%]
-	// fmt.Println(q.HaveQueryFilter("pace.pace"))
-	// fmt.Println(q.HaveQueryFilter("global_bid_rate"))
-	// fmt.Println(q.HaveQueryField("pace"))
-	// fmt.Println(q.HaveQueryFilter("pace"))
-	// fmt.Println(q.HaveQueryFilter("flights"))
-	// fmt.Println(q.HaveQueryField("flights"))
-
-	// q.AddValidation("fields", rqp.In("id", "name"))
-	// q.SetUrlString("http://localhost/?fields=id,name&price.goal=10&inventory_targeting.test[is]=null&inventory_targeting[is]=null&flights[is]=null")
-	// err = q.Parse()
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// //fmt.Println(q.SQL("table")) // SELECT id, name FROM table ORDER BY id LIMIT 10
-	// fmt.Println(q.Select()) // id, name
-	// fmt.Println(q.Where())  // id, name
-	// fmt.Println(q.Args())   // []
 }

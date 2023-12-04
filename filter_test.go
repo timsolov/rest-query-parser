@@ -89,11 +89,11 @@ func Test_RemoveOrEntries(t *testing.T) {
 				"test1": nil,
 				"test2": nil,
 				"test3": nil,
-			})
+			}, nil)
 			_ = q.SetUrlQuery(URL.Query()).Parse()
 
 			// Act
-			_ = q.RemoveFilter(tt.filterToRemove)
+			_ = q.RemoveQueryFilter(tt.filterToRemove)
 
 			// Assert
 			assert.Equal(t, tt.wantWhere, q.WHERE())

@@ -4,7 +4,6 @@ import (
 	"net/url"
 	"testing"
 
-	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -20,8 +19,8 @@ func TestSelect(t *testing.T) {
 	q := New()
 	assert.Equal(t, q.Select(), "*")
 
-	q.AddField("test1")
-	q.AddField("test2")
+	q.AddQueryField("test1")
+	q.AddQueryField("test2")
 	assert.Equal(t, q.Select(), "test1, test2")
 }
 
@@ -29,8 +28,8 @@ func TestSELECT(t *testing.T) {
 	q := New()
 	assert.Equal(t, q.SELECT(), "SELECT *")
 
-	q.AddField("test1")
-	q.AddField("test2")
+	q.AddQueryField("test1")
+	q.AddQueryField("test2")
 	assert.Equal(t, q.SELECT(), "SELECT test1, test2")
 }
 
@@ -41,23 +40,23 @@ func TestOrder(t *testing.T) {
 
 func TestHaveSortBy(t *testing.T) {
 	q := New()
-	assert.Equal(t, q.HaveSortBy("fake"), false)
+	assert.Equal(t, q.HaveQuerySortBy("fake"), false)
 }
 
-func TestRemoveFilter(t *testing.T) {
+func TestRemoveQueryFilter(t *testing.T) {
 	q := New()
-	q.AddFilter("id", ILIKE, "id")
-	q.AddFilter("test", ILIKE, "test")
-	q.AddFilter("test2", ILIKE, "test2")
-	assert.NoError(t, q.RemoveFilter("test"))
+	q.AddQueryFilter("id", ILIKE, "id")
+	q.AddQueryFilter("test", ILIKE, "test")
+	q.AddQueryFilter("test2", ILIKE, "test2")
+	assert.NoError(t, q.RemoveQueryFilter("test"))
 }
 
-func TestGetFilter(t *testing.T) {
+func TestGetQueryFilter(t *testing.T) {
 	q := New()
-	q.AddFilter("id", ILIKE, "id")
-	q.AddFilter("test", ILIKE, "test")
-	q.AddFilter("test2", ILIKE, "test2")
-	_, err := q.GetFilter("test")
+	q.AddQueryFilter("id", ILIKE, "id")
+	q.AddQueryFilter("test", ILIKE, "test")
+	q.AddQueryFilter("test2", ILIKE, "test2")
+	_, err := q.GetQueryFilter("test")
 	assert.NoError(t, err)
 }
 
@@ -84,12 +83,12 @@ func TestFields(t *testing.T) {
 		t.Run(c.url, func(t *testing.T) {
 			URL, err := url.Parse(c.url)
 			assert.NoError(t, err)
-			q := NewQV(URL.Query(), nil)
+			q := NewQV(URL.Query(), nil, nil)
 			assert.NoError(t, err)
-			q.AddValidation("fields", c.v)
+			q.AddQueryValidation("fields", c.v)
 			err = q.Parse()
 			if c.err != nil {
-				assert.Equal(t, c.expected, q.FieldsString())
+				assert.Equal(t, c.expected, q.QueryFields)
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, c.err, errors.Cause(err))
@@ -119,7 +118,7 @@ func TestOffset(t *testing.T) {
 		assert.NoError(t, err)
 		q := New().
 			SetUrlQuery(URL.Query()).
-			AddValidation("page", Max(10))
+			AddQueryValidation("page", Max(10))
 		err = q.Parse()
 		assert.Equal(t, c.err, errors.Cause(err))
 		assert.Equal(t, c.expected, q.OFFSET())
@@ -148,7 +147,7 @@ func TestLimit(t *testing.T) {
 			assert.NoError(t, err)
 			q := New().
 				SetUrlQuery(URL.Query()).
-				AddValidation("page_size", Multi(Min(2), Max(10)))
+				AddQueryValidation("page_size", Multi(Min(2), Max(10)))
 			err = q.Parse()
 			assert.Equal(t, c.err, errors.Cause(err))
 			assert.Equal(t, c.expected, q.LIMIT())
@@ -174,7 +173,7 @@ func TestSort(t *testing.T) {
 		t.Run(c.url, func(t *testing.T) {
 			URL, err := url.Parse(c.url)
 			assert.NoError(t, err)
-			q, err := NewParse(URL.Query(), Validations{"sort": In("id", "name")})
+			q, err := NewParse(URL.Query(), Validations{"sort": In("id", "name")}, nil)
 			assert.Equal(t, c.err, err)
 			assert.Equal(t, c.expected, q.ORDER())
 		})
@@ -189,11 +188,11 @@ func TestSort(t *testing.T) {
 
 	err = q.Parse()
 	assert.NoError(t, err)
-	assert.True(t, q.HaveSortBy("id"))
+	assert.True(t, q.HaveQuerySortBy("id"))
 
 	// Test AddSortBy
-	q.AddSortBy("email", true)
-	assert.True(t, q.HaveSortBy("email"))
+	q.AddQuerySortBy("email", true)
+	assert.True(t, q.HaveQuerySortBy("email"))
 }
 
 func TestWhere(t *testing.T) {
@@ -272,7 +271,7 @@ func TestWhere(t *testing.T) {
 				"custom": func(value interface{}) error {
 					return nil
 				},
-			}).IgnoreUnknownFilters(c.ignore)
+			}, nil).IgnoreUnknownFilters(c.ignore)
 
 			err = q.Parse()
 
@@ -296,7 +295,7 @@ func TestWhere(t *testing.T) {
 func TestWhere2(t *testing.T) {
 
 	q := NewQV(nil, Validations{
-		"id:int": func(value interface{}) error {
+		"id": func(value interface{}) error {
 			if value.(int) > 10 {
 				return errors.New("can't be greater then 10")
 			}
@@ -306,11 +305,11 @@ func TestWhere2(t *testing.T) {
 			"super",
 			"best",
 		),
-		"u:string": nil,
+		"u": nil,
 		"custom": func(value interface{}) error {
 			return nil
 		},
-	})
+	}, nil)
 	assert.NoError(t, q.SetUrlString("?id[eq]=10&s[like]=super|u[like]=*best*&id[gt]=1"))
 	assert.NoError(t, q.Parse())
 	//t.Log(q.SQL("tab"), q.Args())
@@ -322,7 +321,7 @@ func TestWhere3(t *testing.T) {
 	q := NewQV(nil, Validations{
 		"test1": nil,
 		"test2": nil,
-	})
+	}, nil)
 	URL, err := url.Parse("?test1[eq]=test10|test2[eq]=test20&test1[eq]=test11|test2[eq]=test21")
 	assert.NoError(t, err)
 	assert.NoError(t, q.SetUrlQuery(URL.Query()).Error)
@@ -340,12 +339,12 @@ func TestArgs(t *testing.T) {
 	assert.NoError(t, err)
 
 	err = q.SetUrlQuery(URL.Query()).SetValidations(Validations{
-		"fields":  In("id", "status"),
-		"sort":    In("id"),
-		"one:int": nil,
-		"two":     nil,
-		"three":   nil,
-		"four":    nil,
+		"fields": In("id", "status"),
+		"sort":   In("id"),
+		"one":    nil,
+		"two":    nil,
+		"three":  nil,
+		"four":   nil,
 	}).Parse()
 	assert.NoError(t, err)
 
@@ -362,98 +361,32 @@ func TestSQL(t *testing.T) {
 	assert.NoError(t, err)
 
 	q := New().SetUrlQuery(URL.Query()).
-		AddValidation("fields", In("id", "status")).
-		AddValidation("sort", In("id"))
+		AddQueryValidation("fields", In("id", "status")).
+		AddQueryValidation("sort", In("id"))
 	q.IgnoreUnknownFilters(true)
 	err = q.Parse()
 	assert.NoError(t, err)
 	assert.Equal(t, "SELECT id, status FROM test ORDER BY id OFFSET 10", q.SQL("test"))
 
-	q.AddValidation("some:int", nil)
+	q.AddQueryValidation("some", nil)
 	err = q.Parse()
 	assert.NoError(t, err)
 
 	assert.Equal(t, "SELECT id, status FROM test WHERE some = ? ORDER BY id OFFSET 10", q.SQL("test"))
 }
 
-func TestReplaceFiltersNames(t *testing.T) {
-	URL, err := url.Parse("?fields=one&sort=one&one=123&another=yes")
-	assert.NoError(t, err)
-
-	q, err := NewParse(URL.Query(), Validations{
-		"fields":  In("one", "another", "two"),
-		"sort":    In("one", "another", "two"),
-		"one":     nil,
-		"another": nil,
-	})
-	assert.NoError(t, err)
-	assert.True(t, q.HaveFilter("one"))
-
-	q.ReplaceNames(Replacer{
-		"one": "two",
-	})
-
-	assert.Len(t, q.Filters, 2)
-	assert.True(t, q.HaveFilter("two"))
-
-	q.ReplaceNames(Replacer{
-		"another":    "r.another",
-		"nonpresent": "hello",
-	})
-
-	assert.Len(t, q.Filters, 2)
-	assert.True(t, q.HaveFilter("two"))
-	assert.True(t, q.HaveFilter("r.another"))
-	assert.False(t, q.HaveFilter("one"))
-	assert.False(t, q.HaveFilter("another"))
-	assert.False(t, q.HaveFilter("nonpresent"))
-	assert.False(t, q.HaveFilter("hello"))
-
-	assert.NoError(t, q.RemoveFilter("r.another"))
-	assert.Equal(t, q.RemoveFilter("r.another"), errors.Cause(ErrFilterNotFound))
-	_, err = q.GetFilter("r.another")
-	assert.Equal(t, err, errors.Cause(ErrFilterNotFound))
-	f, _ := q.GetFilter("r.another")
-	assert.IsType(t, &Filter{}, f)
-}
-
-func TestRequiredFilter(t *testing.T) {
-	// required but not present
-	URL, err := url.Parse("?")
-	assert.NoError(t, err)
-
-	_, err = NewParse(URL.Query(), Validations{"page_size:required": nil})
-	assert.EqualError(t, err, "page_size: required")
-
-	// required and present
-	URL, err = url.Parse("?limit=10&one[eq]=1&count=4")
-	assert.NoError(t, err)
-
-	qp, err := NewParse(URL.Query(), Validations{
-		"page_size:required": nil,
-		"one:int":            nil,
-		"count:int:required": nil,
-	})
-	assert.NoError(t, err)
-	_, present := qp.validations["page_size:required"]
-	assert.False(t, present)
-	_, present = qp.validations["page_size"]
-	assert.True(t, present)
-}
-
-func TestAddField(t *testing.T) {
+func TestAddQueryField(t *testing.T) {
 	q := New()
 	q.SetUrlString("?test=ok")
-	q.AddField("test")
+	q.AddQueryField("test")
 	assert.Len(t, q.QueryFields, 1)
-	assert.True(t, q.HaveField("test"))
-	assert.Equal(t, "test", q.FieldsString())
+	assert.True(t, q.HaveQueryField("test"))
 }
 
-func TestAddFilter(t *testing.T) {
-	q := New().AddFilter("test", EQ, "ok")
+func TestAddQueryFilter(t *testing.T) {
+	q := New().AddQueryFilter("test", EQ, "ok")
 	assert.Len(t, q.Filters, 1)
-	assert.True(t, q.HaveFilter("test"))
+	assert.True(t, q.HaveQueryFilter("test"))
 	assert.Equal(t, "test = ?", q.Where())
 }
 
@@ -475,22 +408,7 @@ func Test_ignoreUnknown(t *testing.T) {
 
 }
 
-func TestRemoveValidation(t *testing.T) {
-	q := New()
-
-	// validation not found case
-	assert.EqualError(t, q.RemoveValidation("fields"), ErrValidationNotFound.Error())
-
-	// remove plain validation
-	q.AddValidation("fields", In("id"))
-	assert.NoError(t, q.RemoveValidation("fields"))
-
-	// remove typed validation
-	q.AddValidation("name:string", In("id"))
-	assert.NoError(t, q.RemoveValidation("name"))
-}
-
-func Test_RemoveFilter(t *testing.T) {
+func Test_RemoveQueryFilter(t *testing.T) {
 	t.Run("?id[eq]=10|id[eq]=11", func(t *testing.T) {
 		q := New()
 		q.SetValidations(Validations{
@@ -499,7 +417,7 @@ func Test_RemoveFilter(t *testing.T) {
 		})
 		assert.NoError(t, q.SetUrlString("?id[eq]=10|id[eq]=11"))
 		assert.NoError(t, q.Parse())
-		assert.NoError(t, q.RemoveFilter("id"))
+		assert.NoError(t, q.RemoveQueryFilter("id"))
 		assert.Equal(t, "SELECT * FROM test", q.SQL("test"))
 	})
 }
@@ -517,73 +435,18 @@ func Test_MultipleUsageOfUniqueFilters(t *testing.T) {
 	t.Log(q.SQL("test"))
 }
 
-func Test_Date(t *testing.T) {
-
-	q := New()
-
-	q.SetValidations(Validations{
-		"created_at": func(v interface{}) error {
-			s, ok := v.(string)
-			if !ok {
-				return ErrBadFormat
-			}
-			return validation.Validate(s, validation.Date("2006-01-02"))
-		},
-	})
-
-	cases := []struct {
-		uri      string
-		variant1 string
-		variant2 string
-	}{
-		{
-			uri:      "?created_at[eq]=2020-10-02",
-			variant1: "SELECT * FROM test WHERE DATE(created_at) = ?",
-		},
-		{
-			uri:      "?created_at[gt]=2020-10-01&created_at[lt]=2020-10-03",
-			variant1: "SELECT * FROM test WHERE DATE(created_at) > ? AND DATE(created_at) < ?",
-			variant2: "SELECT * FROM test WHERE DATE(created_at) < ? AND DATE(created_at) > ?",
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.uri, func(t *testing.T) {
-			q.SetUrlString(tc.uri)
-			assert.NoError(t, q.Parse())
-			q.ReplaceNames(Replacer{"created_at": "DATE(created_at)"})
-			query := q.SQL("test")
-			assert.Condition(t, func() bool {
-				if tc.variant1 != query && tc.variant2 != query {
-					t.Log(query)
-					return false
-				}
-				return true
-			})
-		})
-	}
-}
-
-func TestQuery_AddFilterRaw(t *testing.T) {
-	q := New().AddFilter("test", EQ, "ok")
-	q.AddFilterRaw("file_id != 'ec34d3b8-3013-43ee-ad7b-1d5d4a6d7213'")
-	assert.Len(t, q.Filters, 2)
-	assert.True(t, q.HaveFilter("test"))
-	assert.Equal(t, "test = ? AND file_id != 'ec34d3b8-3013-43ee-ad7b-1d5d4a6d7213'", q.Where())
-}
-
 func TestEmptySliceFilterWithAnotherFilter(t *testing.T) {
-	q := New().AddFilter("id", IN, []string{})
-	q.AddFilter("another_id", EQ, uuid.New().String())
+	q := New().AddQueryFilter("id", IN, []string{})
+	q.AddQueryFilter("another_id", EQ, uuid.New().String())
 	t.Log(q.SQL("test"))
 }
 
 func TestQuery_AddORFilters(t *testing.T) {
 	t.Run("2 OR conditions", func(t *testing.T) {
-		q := New().AddFilter("test", EQ, "ok")
+		q := New().AddQueryFilter("test", EQ, "ok")
 		q.AddORFilters(func(query *Query) {
-			query.AddFilter("firstname", ILIKE, "*hello*")
-			query.AddFilter("lastname", ILIKE, "*hello*")
+			query.AddQueryFilter("firstname", ILIKE, "*hello*")
+			query.AddQueryFilter("lastname", ILIKE, "*hello*")
 		})
 		out := q.SQL("table")
 		t.Log(out)
@@ -591,11 +454,11 @@ func TestQuery_AddORFilters(t *testing.T) {
 	})
 
 	t.Run("3 OR conditions", func(t *testing.T) {
-		q := New().AddFilter("test", EQ, "ok")
+		q := New().AddQueryFilter("test", EQ, "ok")
 		q.AddORFilters(func(query *Query) {
-			query.AddFilter("firstname", ILIKE, "*hello*")
-			query.AddFilter("lastname", ILIKE, "*hello*")
-			query.AddFilter("email", ILIKE, "*hello*")
+			query.AddQueryFilter("firstname", ILIKE, "*hello*")
+			query.AddQueryFilter("lastname", ILIKE, "*hello*")
+			query.AddQueryFilter("email", ILIKE, "*hello*")
 		})
 		out := q.SQL("table")
 		t.Log(out)
@@ -604,10 +467,10 @@ func TestQuery_AddORFilters(t *testing.T) {
 }
 
 func ExampleQuery_AddORFilters() {
-	q := New().AddFilter("test", EQ, "ok")
+	q := New().AddQueryFilter("test", EQ, "ok")
 	q.AddORFilters(func(query *Query) {
-		query.AddFilter("firstname", ILIKE, "*hello*")
-		query.AddFilter("lastname", ILIKE, "*hello*")
+		query.AddQueryFilter("firstname", ILIKE, "*hello*")
+		query.AddQueryFilter("lastname", ILIKE, "*hello*")
 	})
 	q.SQL("table") // SELECT * FROM table WHERE test = ? AND (firstname ILIKE ? OR lastname ILIKE ?)
 }
